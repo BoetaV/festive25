@@ -1,0 +1,50 @@
+/* static/css/pdf_style.css */
+
+@page {
+    size: A4;
+    margin: 2cm;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    color: #333;
+}
+
+h1 {
+    text-align: center;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 10px;
+    margin-bottom: 30px;
+}
+
+/* Main Table Style for Breakdowns */
+.summary-table {
+    width: 100%;
+    border-collapse: collapse; /* This is crucial for clean borders */
+    margin-bottom: 30px;
+}
+
+.summary-table th,
+.summary-table td {
+    padding: 8px;
+    text-align: left;
+    border: 1px solid #999; /* <-- THIS IS THE KEY ADDITION */
+}
+
+.summary-table thead th {
+    background-color: #4F81BD;
+    color: #FFFFFF;
+    font-weight: bold;
+    text-align: center;
+}
+
+.summary-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+.summary-table tfoot th,
+.summary-table tfoot td {
+    background-color: #e8e8e8;
+    font-weight: bold;
+    border-top: 2px solid #333; /* Make the top border of the footer thicker */
+}

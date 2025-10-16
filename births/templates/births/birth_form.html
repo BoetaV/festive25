@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">{{ form_title }}</h2>
+                
+                <form method="post" id="deliveryForm">
+                    {% csrf_token %}
+                    
+                    <!-- 
+                        SECTION 1: THE MAIN DELIVERY FORM
+                        This renders all the fields from your DeliveryForm, including the
+                        custom 'number_of_babies' dropdown. Crispy Forms handles the styling.
+                    -->
+                    <div id="main-delivery-form">
+                        {{ form|crispy }}
+                    </div>
+                    
+                    <hr>
+
+                    <!-- 
+                        SECTION 2: THE BABY FORMSET
+                        This area is initially hidden and will be controlled by JavaScript.
+                    -->
+                    <div id="baby-details-section" style="display: none;">
+                        <h4 class="mt-4">Baby Details</h4>
+
+                        <!-- This hidden form is REQUIRED for the formset to work. -->
+                        {{ baby_formset.management_form }}
+                        
+                        <div id="baby-forms-container">
+                        {% for baby_form in baby_formset %}
+                            <div class="baby-form-row p-3 mb-3 bg-dark rounded" id="baby-form-{{ forloop.counter0 }}" style="display: none;">
+                                
+                                <!-- THIS IS THE CRITICAL FIX -->
+                                <!-- Render all hidden fields for this form, including the crucial 'id' field -->
+                                {% for hidden_field in baby_form.hidden_fields %}
+                                    {{ hidden_field }}
+                                {% endfor %}
+
+                                <h5>Baby {{ forloop.counter }}</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        {{ baby_form.gender|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ baby_form.weight|as_crispy_field }}
+                                    </div>
+                                </div>
+                                <!-- You can remove the <hr> if the rounded background provides enough separation -->
+                            </div>
+                        {% endfor %}
+                        </div>
+                    </div>
+
+                    <p class="text-info">(Please complete details for each live birth if applicable)</p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                        <button type="submit" class="btn btn-primary">{{ submit_button_text }}</button>
+                        <a href="{% url 'delivery_list' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascript %}
+<script>
+// This ensures our script only runs after the entire HTML page is loaded.
+document.addEventListener('DOMContentLoaded', function() {
+
+    // --- GRAB ALL THE HTML ELEMENTS WE NEED TO CONTROL ---
+    const districtSelect = document.getElementById('id_district');
+    const municipalitySelect = document.getElementById('id_local_municipality');
+    const facilitySelect = document.getElementById('id_facility');
+    const nilBirthsCheckbox = document.getElementById('id_no_births_to_report');
+    const numBabiesSelect = document.getElementById('id_number_of_babies');
+    const babyDetailsSection = document.getElementById('baby-details-section');
+    const babyFormsContainer = document.getElementById('baby-forms-container');
+
+    // These are fields that should be hidden for a NIL report, besides the baby section.
+    const fieldsToToggleForNil = [
+        document.querySelector('#div_id_number_of_babies'),
+        document.querySelector('#div_id_born_before_arrival'),
+        document.querySelector('#div_id_delivery_time'),
+        document.querySelector('#div_id_mother_name'),
+        document.querySelector('#div_id_mother_surname'),
+        document.querySelector('#div_id_mother_dob'),
+        document.querySelector('#div_id_birth_mode'),
+        document.querySelector('#div_id_gravidity'),
+        document.querySelector('#div_id_parity')
+    ];
+
+
+    // ==========================================================
+    // LOGIC FOR CASCADING LOCATION DROPDOWNS
+    // ==========================================================
+    function updateOptions(selectElement, options) {
+        if (!selectElement) return;
+        selectElement.innerHTML = `<option value="">--Select--</option>`;
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option;
+            opt.textContent = option;
+            selectElement.appendChild(opt);
+        });
+    }
+
+    async function fetchOptions(type, id) {
+        if (!id) return []; // Don't fetch if no ID is selected
+        const url = `/ajax/load-options/?type=${type}&id=${id}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.options;
+        } catch (error) {
+            console.error('Failed to fetch options:', error);
+            return [];
+        }
+    }
+    
+    districtSelect.addEventListener('change', async function() {
+        const districtId = this.value;
+        const municipalities = await fetchOptions('district', districtId);
+        updateOptions(municipalitySelect, municipalities);
+        updateOptions(facilitySelect, []); // Clear facilities
+    });
+
+    municipalitySelect.addEventListener('change', async function() {
+        const municipalityId = this.value;
+        const facilities = await fetchOptions('municipality', municipalityId);
+        updateOptions(facilitySelect, facilities);
+    });
+
+    // ==========================================================
+    // LOGIC FOR SHOWING/HIDING BABY FORMS
+    // ==========================================================
+    function toggleBabyForms() {
+        const selectedCount = parseInt(numBabiesSelect.value) || 0;
+        
+        // Show the entire "Baby Details" section if at least one baby is selected
+        babyDetailsSection.style.display = (selectedCount > 0) ? 'block' : 'none';
+
+        const allBabyForms = babyFormsContainer.querySelectorAll('.baby-form-row');
+        allBabyForms.forEach((form, index) => {
+            // Show the form if its index is less than the number of babies selected
+            form.style.display = (index < selectedCount) ? 'block' : 'none';
+        });
+    }
+    numBabiesSelect.addEventListener('change', toggleBabyForms);
+
+
+    // ==========================================================
+    // MASTER LOGIC FOR "NO BIRTHS TO REPORT" CHECKBOX
+    // ==========================================================
+    function handleNilReportToggle() {
+        const isChecked = nilBirthsCheckbox.checked;
+
+        // Hide/show all the individual delivery fields
+        fieldsToToggleForNil.forEach(fieldDiv => {
+            if (fieldDiv) {
+                fieldDiv.style.display = isChecked ? 'none' : 'block';
+            }
+        });
+
+        // If NIL is checked, we must reset and hide the baby forms section
+        if (isChecked) {
+            numBabiesSelect.value = ''; // Reset the dropdown
+            toggleBabyForms(); // This will hide the section and all forms
+        }
+    }
+    nilBirthsCheckbox.addEventListener('change', handleNilReportToggle);
+
+    // --- INITIAL STATE ---
+    // Run all toggle functions once on page load to set the correct initial view
+    toggleBabyForms();
+    handleNilReportToggle();
+});
+
+const motherDobInput = document.getElementById('id_mother_dob');
+if (motherDobInput) {
+    // Create a new small element to display the age
+    const ageDisplay = document.createElement('small');
+    ageDisplay.className = 'form-text text-muted ms-2'; // Bootstrap classes for styling
+    // Insert it right after the date input field
+    motherDobInput.parentNode.appendChild(ageDisplay);
+
+    function calculateAndDisplayAge() {
+        const dobString = motherDobInput.value;
+        if (!dobString) {
+            ageDisplay.textContent = '';
+            return;
+        }
+        
+        // Note: JS date parsing can be tricky, this works for YYYY-MM-DD format
+        const dob = new Date(dobString);
+        if (isNaN(dob.getTime())) { // Check if the date is valid
+             ageDisplay.textContent = '';
+             return;
+        }
+
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+            age--;
+        }
+        
+        if (age >= 0) {
+            ageDisplay.textContent = `(Calculated Age: ${age})`;
+        } else {
+            ageDisplay.textContent = '';
+        }
+    }
+
+    // Listen for changes on the date input
+    motherDobInput.addEventListener('change', calculateAndDisplayAge);
+    
+    // Run once on page load in case the form is pre-filled (e.g., on edit)
+    calculateAndDisplayAge();
+}
+
+ // ==========================================================
+    // INITIALIZE FLATPCIKR WIDGETS (NEW)
+    // ==========================================================
+
+    // Initialize the date picker
+    flatpickr(".datepicker", {
+        altInput: true,
+        altFormat: "F j, Y", // A more human-readable format (e.g., "October 14, 2025")
+        dateFormat: "Y-m-d", // The format that gets sent to the server
+        maxDate: "today"     // Prevent selecting future dates
+    });
+
+    // Initialize the time picker
+    flatpickr(".timepicker", {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: "H:i", // 24-hour format
+        time_24hr: true,
+        minuteIncrement: 1
+    });
+</script>
+{% endblock javascript %}

@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+<div class="container-fluid">
+<div class="row align-items-center mb-4">
+    <!-- Column for the Logo -->
+    <div class="col-auto">
+        <img src="{% static 'ecdoh_logo.png' %}" alt="Eastern Cape Department of Health Logo" class="img-fluid" style="max-height: 80px;">
+    </div>
+    <!-- Column for the Title -->
+    <div class="col">
+        <h1 class="mb-0">{{ form_title }}</h1>
+    </div>
+</div>
+
+    <!-- ============================================= -->
+    <!-- ROW 0: FILTERS -->
+    <!-- ============================================= -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-2">
+                    <form method="GET" action="" class="d-flex flex-wrap align-items-center">
+                        <!-- Date Filter -->
+                        <div class="d-flex align-items-center me-3 mb-2 mb-md-0">
+                            <label for="report_date_filter" class="form-label me-2 mb-0 fw-bold">Date:</label>
+                            <select name="report_date" id="report_date_filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="" {% if not selected_date %}selected{% endif %}>All Dates</option>
+                                <option value="25 December 2025" {% if selected_date == "25 December 2025" %}selected{% endif %}>25 December 2025</option>
+                                <option value="01 January 2026" {% if selected_date == "01 January 2026" %}selected{% endif %}>01 January 2026</option>
+                            </select>
+                        </div>
+                        <!-- District Filter -->
+                        <div class="d-flex align-items-center">
+                            <label for="district_filter" class="form-label me-2 mb-0 fw-bold">District:</label>
+                            <select name="district" id="district_filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="" {% if not selected_district %}selected{% endif %}>All Districts</option>
+                                {% for district in district_list %}
+                                    <option value="{{ district }}" {% if selected_district == district %}selected{% endif %}>{{ district }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- ROW 1: KPI CARDS -->
+    <!-- ============================================= -->
+    <div class="row mb-4">
+        <!-- KPI Card 1: Total Births -->
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-uppercase">Total Births</h6>
+                    <p class="card-text fs-2 fw-bold mb-0">{{ total_births }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- KPI Card 2: Total Males -->
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-uppercase">Total Males</h6>
+                    <p class="card-text fs-2 fw-bold mb-0">{{ total_males }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- KPI Card 3: Total Females -->
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card text-white bg-danger h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-uppercase">Total Females</h6>
+                    <p class="card-text fs-2 fw-bold mb-0">{{ total_females }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- KPI Card 4: NIL Reports -->
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card text-white bg-secondary h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-uppercase">NIL Reports</h6>
+                    <p class="card-text fs-2 fw-bold mb-0">{{ total_nil_reports }}</p>
+                </div>
+            </div>
+        </div>
+    </div> <!-- END OF ROW 1 -->
+
+    <!-- ============================================= -->
+    <!-- ROW 2: MAIN DATA (TABLE AND CHARTS) -->
+    <!-- ============================================= -->
+    <div class="row">
+        <!-- Column for Dynamic Summary Table -->
+        <div class="col-xl-5 mb-4">
+            <div class="card border-primary h-100">
+                <div class="card-header"><h5 class="card-title mb-0">{{ summary_title }}</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead class="table-dark"><tr class="text-white">
+                                    <th>{{ summary_table_header }}</th>
+                                    <th>Total Babies</th>
+                                    <th>Males</th>
+                                    <th>Females</th>
+                            </tr></thead>
+                            <tbody class="text-white">
+                                {% for summary in summary_data %}
+                                <tr>
+                                    <td>{% if selected_district %}{{ summary.local_municipality }}{% else %}{{ summary.district }}{% endif %}</td>
+                                    <td>{{ summary.total_babies }}</td>
+                                    <td>{{ summary.male_count }}</td>
+                                    <td>{{ summary.female_count }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center">No delivery data available for this period/district.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-group-divider"><tr class="fw-bold">
+                                    <td>{{ summary_footer_title }}</td>
+                                    <td>{{ total_births }}</td>
+                                    <td>{{ total_males }}</td>
+                                    <td>{{ total_females }}</td>
+                            </tr></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column for Age Group Bar Chart -->
+        <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card border-info h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Births by Mother's Age Group</h5></div>
+                <div class="card-body d-flex justify-content-center align-items-center">
+                    <div style="position: relative; height: 100%; width: 100%;"><canvas id="ageGroupChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column for Birth Mode Pie Chart -->
+        <div class="col-lg-6 col-xl-3 mb-4">
+            <div class="card border-warning h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Birth Modes</h5></div>
+                <div class="card-body d-flex justify-content-center align-items-center">
+                    <div style="position: relative; height: 100%; width: 100%;"><canvas id="birthModeChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- END OF ROW 2 -->
+
+<!-- ============================================= -->
+<!-- ROW 3: TIME SLOT & FACILITY TYPE SUMMARIES -->
+<!-- ============================================= -->
+<div class="row">
+
+    <!-- Column for Time Slot Summary -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-success h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Births per Time Slot</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead class="table-dark">
+                            <tr class="text-white">
+                                <th>Time Slot</th>
+                                <th>Males</th>
+                                <th>Females</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-white">
+                            {% for summary in time_slot_summary %}
+                                {% if summary.time_slot %}
+                                <tr>
+                                    <td>{{ summary.time_slot }}</td>
+                                    <td>{{ summary.male_count }}</td>
+                                    <td>{{ summary.female_count }}</td>
+                                    <td class="fw-bold">{{ summary.total_in_slot }}</td>
+                                </tr>
+                                {% endif %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">No data available for time slots.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column for Facility Type Summary -->
+    <div class="col-lg-6 mb-4">
+        <div class="card border-secondary h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Births per Facility Type</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead class="table-dark">
+                            <tr class="text-white">
+                                <th>Facility Type</th>
+                                <th>Males</th>
+                                <th>Females</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-white">
+                            {% for summary in facility_type_summary %}
+                                {% if summary.facility_type %}
+                                <tr>
+                                    <td>{{ summary.facility_type }}</td>
+                                    <td>{{ summary.male_count }}</td>
+                                    <td>{{ summary.female_count }}</td>
+                                    <td class="fw-bold">{{ summary.total_in_type }}</td>
+                                </tr>
+                                {% endif %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">No data available for facility types.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock content %}
+
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // We must register the datalabels plugin *once* at the beginning.
+    Chart.register(ChartDataLabels);
+
+    // --- Bar Chart for Age Groups ---
+    const ageCtx = document.getElementById('ageGroupChart');
+    if (ageCtx) {
+        new Chart(ageCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ age_group_labels|safe }},
+                datasets: [{
+                    label: 'Number of Births',
+                    data: {{ age_group_data|safe }},
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 }}},
+                plugins: { legend: { display: false }}
+            }
+        });
+    }
+
+    // --- Pie Chart for Birth Modes ---
+    const birthModeCtx = document.getElementById('birthModeChart');
+    if (birthModeCtx) {
+        new Chart(birthModeCtx, {
+            type: 'pie',
+            data: {
+                labels: {{ birth_mode_labels|safe }},
+                datasets: [{
+                    label: 'Deliveries',
+                    data: {{ birth_mode_data|safe }},
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)',
+                        'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)'
+                    ],
+                    borderColor: '#444',
+                    borderWidth: 1,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        formatter: (value, ctx) => {
+                            const label = ctx.chart.data.labels[ctx.dataIndex];
+                            const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                            return `${label}\n${value} (${percentage})`;
+                        },
+                        color: '#fff',
+                        font: { weight: 'bold', size: 12 },
+                        textAlign: 'center',
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock javascript %}

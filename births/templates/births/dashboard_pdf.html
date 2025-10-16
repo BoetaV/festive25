@@ -1,0 +1,134 @@
+code
+Html
+{% load custom_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title }}</title>
+    <link rel="stylesheet" href="pdf_style.css">
+</head>
+<body>
+    <header>
+        <h1>{{ report_title }}</h1>
+        <p>Report generated on: {% now "d M Y H:i" %}</p>
+    </header>
+
+    <main>
+        <h2>Overall Summary</h2>
+        <table class="kpi-table">
+            <tr><th>Total Births</th><td>{{ total_births }}</td></tr>
+            <tr><th>Total Males</th><td>{{ total_males }}</td></tr>
+            <tr><th>Total Females</th><td>{{ total_females }}</td></tr>
+            <tr><th>NIL Reports Submitted</th><td>{{ total_nil_reports }}</td></tr>
+        </table>
+
+        <h2>Breakdown by {{ summary_table_header }}</h2>
+        <table class="summary-table">
+            <!-- ... (This table for District/Municipality is unchanged) ... -->
+        </table>
+
+        <!-- ============================================= -->
+        <!-- BIRTHS BY AGE GROUP TABLE (NEW) -->
+        <!-- ============================================= -->
+        <h2>Births by Mother's Age Group</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Age Group</th>
+                    <th>Number of Births</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for label, count in age_group_data.items %}
+                <tr>
+                    <td>{{ label }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="text-align: center;">No data available for age groups.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- ============================================= -->
+        <!-- BIRTHS BY BIRTH MODE TABLE (NEW) -->
+        <!-- ============================================= -->
+        <h2>Births by Birth Mode</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Birth Mode</th>
+                    <th>Number of Deliveries</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in birth_mode_data %}
+                <tr>
+                    <td>{{ item.birth_mode }}</td>
+                    <td>{{ item.count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="text-align: center;">No data available for birth modes.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- ============================================= -->
+        <!-- TIME SLOT & FACILITY TYPE SUMMARIES -->
+        <!-- ============================================= -->
+        <h2>Births per Time Slot</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Time Slot</th>
+                    <th>Males</th>
+                    <th>Females</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in time_slot_summary %}
+                    {% if summary.time_slot %}
+                    <tr>
+                        <td>{{ summary.time_slot }}</td>
+                        <td>{{ summary.male_count }}</td>
+                        <td>{{ summary.female_count }}</td>
+                        <td>{{ summary.total_in_slot }}</td>
+                    </tr>
+                    {% endif %}
+                {% empty %}
+                <tr><td colspan="4" style="text-align: center;">No data available for time slots.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <h2>Births per Facility Type</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Facility Type</th>
+                    <th>Males</th>
+                    <th>Females</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in facility_type_summary %}
+                    {% if summary.facility_type %}
+                    <tr>
+                        <td>{{ summary.facility_type }}</td>
+                        <td>{{ summary.male_count }}</td>
+                        <td>{{ summary.female_count }}</td>
+                        <td>{{ summary.total_in_type }}</td>
+                    </tr>
+                    {% endif %}
+                {% empty %}
+                <tr><td colspan="4" style="text-align: center;">No data available for facility types.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+
+</body>
+</html>

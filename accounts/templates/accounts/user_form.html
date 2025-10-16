@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">{{ form_title }}</h2>
+                <form method="post" id="userForm">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                        <button type="submit" class="btn btn-primary">{{ submit_button_text|default:form_title }}</button>
+                        <a href="{% url 'user_list' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- GRAB HTML ELEMENTS ---
+    const roleSelect = document.getElementById('id_role');
+    const districtSelect = document.getElementById('id_district');
+    const municipalitySelect = document.getElementById('id_local_municipality');
+    const facilitySelect = document.getElementById('id_facility');
+
+    // --- GET INITIAL VALUES FROM THE VIEW (for edit mode) ---
+    // The |default_if_none filter prevents errors if the variable doesn't exist.
+    const initialMunicipality = "{{ initial_municipality|default_if_none:'' }}";
+    const initialFacility = "{{ initial_facility|default_if_none:'' }}";
+
+    // --- LOGIC TO SHOW/HIDE FIELDS BASED ON SELECTED ROLE ---
+    function toggleLocationFields() {
+        if (!roleSelect) return;
+        const selectedRoleText = roleSelect.options[roleSelect.selectedIndex].text;
+        const municipalityGroup = document.querySelector('#div_id_local_municipality');
+        const facilityGroup = document.querySelector('#div_id_facility');
+
+        if (municipalityGroup && facilityGroup) {
+            if (selectedRoleText === 'User') {
+                municipalityGroup.style.display = 'block';
+                facilityGroup.style.display = 'block';
+            } else {
+                municipalityGroup.style.display = 'none';
+                facilityGroup.style.display = 'none';
+            }
+        }
+    }
+
+    // --- LOGIC FOR DYNAMIC DROPDOWNS ---
+    async function fetchOptions(type, id) {
+        if (!id) return [];
+        const url = `/ajax/load-options/?type=${type}&id=${id}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.options;
+        } catch (error) {
+            console.error('Failed to fetch options:', error);
+            return [];
+        }
+    }
+
+    function updateOptions(selectElement, options, selectedValue = null) {
+        if (!selectElement) return;
+        selectElement.innerHTML = `<option value="">---------</option>`;
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option;
+            opt.textContent = option;
+            if (option === selectedValue) {
+                opt.selected = true;
+            }
+            selectElement.appendChild(opt);
+        });
+        // After updating options, dispatch a change event to trigger the next dropdown in the chain.
+        selectElement.dispatchEvent(new Event('change'));
+    }
+    
+    // --- EVENT LISTENERS ---
+    if (districtSelect) {
+        districtSelect.addEventListener('change', async function() {
+            const districtId = this.value;
+            const municipalities = await fetchOptions('district', districtId);
+            updateOptions(municipalitySelect, municipalities);
+        });
+    }
+
+    if (municipalitySelect) {
+        municipalitySelect.addEventListener('change', async function() {
+            const municipalityId = this.value;
+            const facilities = await fetchOptions('municipality', municipalityId);
+            // On edit, pre-select the initial facility if the municipality's value matches the initial value.
+            // This ensures that when the municipality dropdown is populated, it automatically selects the correct facility.
+            const selectedFacility = (municipalitySelect.value === initialMunicipality) ? initialFacility : null;
+            updateOptions(facilitySelect, facilities, selectedFacility);
+        });
+    }
+
+    // ==========================================================
+    // INITIALIZATION LOGIC (Runs once on page load)
+    // ==========================================================
+    async function initializeForm() {
+        // 1. Set the correct visibility for location fields based on the initial role.
+        toggleLocationFields();
+
+        // 2. If a district is already selected (for an Admin or in Edit mode)...
+        if (districtSelect && districtSelect.value) {
+            const districtId = districtSelect.value;
+            const municipalities = await fetchOptions('district', districtId);
+            
+            // ...populate the municipalities and pre-select the correct one if we are in edit mode.
+            updateOptions(municipalitySelect, municipalities, initialMunicipality);
+        }
+    }
+    
+    // ATTACH ROLE LISTENER
+    if (roleSelect) {
+        roleSelect.addEventListener('change', toggleLocationFields);
+    }
+    
+    // RUN THE INITIALIZATION LOGIC
+    initializeForm();
+});
+</script>
+{% endblock javascript %}
