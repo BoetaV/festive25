@@ -27,7 +27,15 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(https://festive25-1.onrender.com/)
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# ==========================================================
+# NEW: CSRF TRUSTED ORIGINS SETTING
+# ==========================================================
+# This tells Django to trust POST requests originating from your Render domain.
+# It is required for HTTPS deployments.
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS = [f'https://festive25-1.onrender.com']
 
 # ==========================================================
 # APPLICATION DEFINITION
