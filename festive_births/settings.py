@@ -121,6 +121,16 @@ LOGIN_REDIRECT_URL = 'delivery_list'
 LOGOUT_REDIRECT_URL = 'landing_page'
 
 # ==========================================================
+# SESSION MANAGEMENT (NEW)
+# ==========================================================
+# This is the key setting.
+# If True, the user's session will expire when they close their browser.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Optional: You can also set a session cookie age for inactivity timeout
+# SESSION_COOKIE_AGE = 1800  # Session will expire after 30 minutes of inactivity
+
+# ==========================================================
 # INTERNATIONALIZATION & STATIC FILES
 # ==========================================================
 LANGUAGE_CODE = 'en-us'
