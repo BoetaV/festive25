@@ -35,7 +35,7 @@ if RENDER_EXTERNAL_HOSTNAME:
 # This tells Django to trust POST requests originating from your Render domain.
 # It is required for HTTPS deployments.
 if RENDER_EXTERNAL_HOSTNAME:
-    CSRF_TRUSTED_ORIGINS = [f'https://festive25-1.onrender.com']
+    CSRF_TRUSTED_ORIGINS = (f'https://{RENDER_EXTERNAL_HOSTNAME}') 
 
 # ==========================================================
 # APPLICATION DEFINITION
