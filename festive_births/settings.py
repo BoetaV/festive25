@@ -3,39 +3,25 @@ import os
 import dj_database_url
 from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# ==========================================================
-# LOAD ENVIRONMENT VARIABLES
-# ==========================================================
-# Load variables from .env file for local development.
-# On Render, this file won't exist, and it will use dashboard environment variables.
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # ==========================================================
 # CORE DEPLOYMENT SETTINGS
 # ==========================================================
-# Reads the secret key from an environment variable.
 SECRET_KEY = os.environ.get('SECRET_KEY')
-
-# Reads the debug setting from an environment variable. Defaults to False for production safety.
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-# --- CORRECTED ALLOWED_HOSTS ---
-# Starts with local hosts, then adds Render's hostname if it exists.
+# --- ALLOWED_HOSTS & CSRF CONFIGURATION ---
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+CSRF_TRUSTED_ORIGINS = [] # Initialize as an empty list for local development
+
+# Get the hostname from the Render environment variable.
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-
-# ==========================================================
-# NEW: CSRF TRUSTED ORIGINS SETTING
-# ==========================================================
-# This tells Django to trust POST requests originating from your Render domain.
-# It is required for HTTPS deployments.
-if RENDER_EXTERNAL_HOSTNAME:
-    CSRF_TRUSTED_ORIGINS = (f'https://{RENDER_EXTERNAL_HOSTNAME}') 
+    # Correctly build the full origin with the https scheme
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
 # ==========================================================
 # APPLICATION DEFINITION
@@ -129,6 +115,8 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Optional: You can also set a session cookie age for inactivity timeout
 # SESSION_COOKIE_AGE = 1800  # Session will expire after 30 minutes of inactivity
+
+
 
 # ==========================================================
 # INTERNATIONALIZATION & STATIC FILES
