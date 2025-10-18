@@ -1,34 +1,69 @@
 /* static/css/pdf_style.css */
 
+/* --- General Page Setup --- */
 @page {
-    size: A4;
-    margin: 2cm;
+    size: A4 portrait; /* <-- THIS IS THE ONLY CHANGE NEEDED HERE */
+    margin: 1.5cm;
 }
 
 body {
     font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 8pt; /* Use a smaller base font for compact reports */
     color: #333;
 }
 
-h1 {
+header {
     text-align: center;
-    border-bottom: 2px solid #ccc;
-    padding-bottom: 10px;
-    margin-bottom: 30px;
+    border-bottom: 2px solid #4F81BD;
+    padding-bottom: 5px;
+    margin-bottom: 20px;
 }
 
-/* Main Table Style for Breakdowns */
+h1 {
+    font-size: 16pt;
+    color: #365F91;
+    margin-bottom: 5px;
+    /* Reset styles from your old h1 rule */
+    text-align: center;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+h2 {
+    font-size: 12pt;
+    color: #4F81BD;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 3px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+/* --- Layout for Dashboard PDF --- */
+.two-column-layout {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    page-break-inside: avoid;
+}
+
+.column {
+    flex: 1;
+    min-width: 0;
+}
+
+/* --- Table Styles --- */
 .summary-table {
     width: 100%;
-    border-collapse: collapse; /* This is crucial for clean borders */
-    margin-bottom: 30px;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
 }
 
 .summary-table th,
 .summary-table td {
-    padding: 8px;
+    padding: 4px 6px; /* Reduced padding for compactness */
     text-align: left;
-    border: 1px solid #999; /* <-- THIS IS THE KEY ADDITION */
+    border: 1px solid #999;
 }
 
 .summary-table thead th {
@@ -46,5 +81,23 @@ h1 {
 .summary-table tfoot td {
     background-color: #e8e8e8;
     font-weight: bold;
-    border-top: 2px solid #333; /* Make the top border of the footer thicker */
+    border-top: 2px solid #333;
+}
+
+/* A separate style for the simple key-value summary table */
+.kpi-table {
+    width: 60%;
+    border-collapse: collapse;
+    margin-bottom: 25px;
+}
+.kpi-table th, .kpi-table td {
+    padding: 6px;
+    border-bottom: 1px solid #ddd;
+}
+.kpi-table th {
+    width: 40%;
+    background-color: #f2f2f2;
+    font-weight: bold;
+    text-align: right;
+    padding-right: 15px;
 }
