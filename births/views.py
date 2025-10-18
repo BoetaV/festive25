@@ -32,6 +32,11 @@ def is_admin_or_superuser(user):
     return user.is_superuser or user.groups.filter(name='Admin').exists()
 
 
+# births/views.py
+
+# ... (all your imports at the top of the file) ...
+from datetime import date, timedelta
+
 # ==========================================================
 # PUBLIC DASHBOARD VIEW
 # ==========================================================
@@ -79,9 +84,9 @@ class LandingPageView(TemplateView):
         
         context.update({'summary_title': title, 'summary_table_header': header, 'summary_footer_title': footer, 'summary_group_by': group_by})
 
-        # 6. Other Chart/Table Data Queries
+        # 6. Detailed Breakdown Queries for Tables & Charts
         
-        # Age Group Calculation
+        # Age Group (Table)
         age_group_labels = ["10-14 yrs", "15-19 yrs", "20-35 yrs", "35+ yrs"]
         age_group_summary = {label: {'male_count': 0, 'female_count': 0, 'total': 0} for label in age_group_labels}
         today = date.today()
@@ -99,19 +104,28 @@ class LandingPageView(TemplateView):
                     elif baby.gender == 'Female': age_group_summary[age_group]['female_count'] += 1
                     age_group_summary[age_group]['total'] += 1
         
-        # --- CORRECTED BIRTH MODE QUERY ---
-        birth_mode_summary = deliveries_qs.filter(
-            no_births_to_report=False, birth_mode__isnull=False
-        ).exclude(
-            birth_mode__exact=''
-        ).values('birth_mode').annotate(
+        # Birth Mode (Table & Chart)
+        birth_mode_summary = deliveries_qs.filter(no_births_to_report=False, birth_mode__isnull=False).exclude(birth_mode__exact='').values('birth_mode').annotate(
             male_count=Count('babies', filter=Q(babies__gender='Male')),
             female_count=Count('babies', filter=Q(babies__gender='Female')),
-            total=Count('babies') # This now correctly counts babies for each mode
-        ).order_by('birth_mode')
+            total=Count('babies')).order_by('birth_mode')
 
+        # Time Slot (Table)
         time_slot_summary = deliveries_qs.filter(no_births_to_report=False).values('time_slot').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_slot=Count('babies')).order_by('time_slot')
+        
+        # Facility Type (Table)
         facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
+
+        # Teenage Pregnancy (Table)
+        date_10_years_ago = today.replace(year=today.year - 10)
+        date_15_years_ago = today.replace(year=today.year - 15)
+        date_20_years_ago = today.replace(year=today.year - 20)
+        teenage_pregnancy_summary = deliveries_qs.filter(
+            no_births_to_report=False, mother_dob__isnull=False, mother_dob__gte=date_20_years_ago
+        ).values('facility').annotate(
+            group_10_14=Count('babies', filter=Q(delivery__mother_dob__range=(date_15_years_ago + timedelta(days=1), date_10_years_ago))),
+            group_15_19=Count('babies', filter=Q(delivery__mother_dob__range=(date_20_years_ago, date_15_years_ago)))
+        ).order_by('facility')
 
         # 7. Pass all data to the context
         context.update({
@@ -120,14 +134,12 @@ class LandingPageView(TemplateView):
             'form_title': "Festive Season Dashboard", 'selected_date': selected_date, 'selected_district': selected_district,
             'selected_municipality': selected_municipality, 'selected_facility': selected_facility,
             'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
-
-            # Data for tables
             'age_group_summary': age_group_summary,
-            'birth_mode_summary': birth_mode_summary, # Pass the full summary for the table
+            'birth_mode_summary': birth_mode_summary,
             'time_slot_summary': time_slot_summary,
             'facility_type_summary': facility_type_summary,
-
-            # Data for charts on the web dashboard
+            'teenage_pregnancy_summary': teenage_pregnancy_summary,
+            # Data formatted specifically for Chart.js
             'age_group_labels': json.dumps(list(age_group_summary.keys())),
             'age_group_data': json.dumps([d['total'] for d in age_group_summary.values()]),
             'birth_mode_labels': json.dumps([item['birth_mode'] for item in birth_mode_summary]), 
