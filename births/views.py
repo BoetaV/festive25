@@ -41,24 +41,29 @@ class LandingPageView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
+        # 1. Get and clean filter values from the URL
         selected_date = self.request.GET.get('report_date') or None
         selected_district = self.request.GET.get('district') or None
         selected_municipality = self.request.GET.get('local_municipality') or None
         selected_facility = self.request.GET.get('facility') or None
 
+        # 2. Filter the base queryset for deliveries
         deliveries_qs = Delivery.objects.all()
         if selected_date: deliveries_qs = deliveries_qs.filter(report_date=selected_date)
         if selected_district: deliveries_qs = deliveries_qs.filter(district=selected_district)
         if selected_municipality: deliveries_qs = deliveries_qs.filter(local_municipality=selected_municipality)
         if selected_facility: deliveries_qs = deliveries_qs.filter(facility=selected_facility)
         
+        # 3. Create the babies queryset based on the filtered deliveries
         babies_qs = Baby.objects.filter(delivery__in=deliveries_qs)
 
+        # 4. KPI Card Calculations
         total_births = babies_qs.count()
         total_males = babies_qs.filter(gender='Male').count()
         total_females = babies_qs.filter(gender='Female').count()
         total_nil_reports = deliveries_qs.filter(no_births_to_report=True).count()
 
+        # 5. Dynamic Summary Table Logic
         if selected_facility:
             group_by, title, header, footer = 'facility', f'Births in {selected_facility}', 'Facility', selected_facility
         elif selected_municipality:
@@ -74,28 +79,49 @@ class LandingPageView(TemplateView):
         
         context.update({'summary_title': title, 'summary_table_header': header, 'summary_footer_title': footer, 'summary_group_by': group_by})
 
-        age_labels, age_counts = ["10-14", "15-19", "20-35", "35+"], {l: 0 for l in ["10-14", "15-19", "20-35", "35+"]}
+        # 6. Other Chart/Table Data Queries
+        
+        # --- NEW & IMPROVED AGE GROUP CALCULATION ---
+        age_group_labels = ["10-14 yrs", "15-19 yrs", "20-35 yrs", "35+ yrs"]
+        age_group_summary = {label: {'male_count': 0, 'female_count': 0, 'total': 0} for label in age_group_labels}
         today = date.today()
-        for baby in babies_qs.select_related('delivery').filter(delivery__mother_dob__isnull=False):
-            age = today.year - baby.delivery.mother_dob.year - ((today.month, today.day) < (baby.delivery.mother_dob.month, baby.delivery.mother_dob.day))
-            if 10 <= age <= 14: age_counts["10-14"] += 1
-            elif 15 <= age <= 19: age_counts["15-19"] += 1
-            elif 20 <= age <= 35: age_counts["20-35"] += 1
-            elif age > 35: age_counts["35+"] += 1
+        deliveries_with_dob = deliveries_qs.filter(mother_dob__isnull=False, no_births_to_report=False).prefetch_related('babies')
+        for delivery in deliveries_with_dob:
+            age = today.year - delivery.mother_dob.year - ((today.month, today.day) < (delivery.mother_dob.month, delivery.mother_dob.day))
+            age_group = None
+            if 10 <= age <= 14: age_group = "10-14 yrs"
+            elif 15 <= age <= 19: age_group = "15-19 yrs"
+            elif 20 <= age <= 35: age_group = "20-35 yrs"
+            elif age > 35: age_group = "35+ yrs"
+            if age_group:
+                for baby in delivery.babies.all():
+                    if baby.gender == 'Male': age_group_summary[age_group]['male_count'] += 1
+                    elif baby.gender == 'Female': age_group_summary[age_group]['female_count'] += 1
+                    age_group_summary[age_group]['total'] += 1
         
         birth_mode_summary = deliveries_qs.filter(no_births_to_report=False, birth_mode__isnull=False).exclude(birth_mode__exact='').values('birth_mode').annotate(count=Count('id')).order_by('-count')
         time_slot_summary = deliveries_qs.filter(no_births_to_report=False).values('time_slot').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_slot=Count('babies')).order_by('time_slot')
         facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
 
+        # 7. Pass all data to the context
         context.update({
             'total_births': total_births, 'total_males': total_males, 'total_females': total_females,
             'total_nil_reports': total_nil_reports, 'summary_data': summary_data,
             'form_title': "Festive Season Dashboard", 'selected_date': selected_date, 'selected_district': selected_district,
             'selected_municipality': selected_municipality, 'selected_facility': selected_facility,
             'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
-            'age_group_labels': json.dumps(age_labels), 'age_group_data': json.dumps(list(age_counts.values())),
-            'birth_mode_labels': json.dumps([i['birth_mode'] for i in birth_mode_summary]), 'birth_mode_data': json.dumps([i['count'] for i in birth_mode_summary]),
-            'time_slot_summary': time_slot_summary, 'facility_type_summary': facility_type_summary,
+
+            # Data for the new table-based summaries
+            'age_group_summary': age_group_summary,
+            'birth_mode_summary_table': birth_mode_summary, # Pass the raw queryset for the table
+            'time_slot_summary': time_slot_summary,
+            'facility_type_summary': facility_type_summary,
+
+            # Data for the charts (can be removed if you no longer have charts on the main dashboard)
+            'age_group_labels': json.dumps(list(age_group_summary.keys())),
+            'age_group_data': json.dumps([d['total'] for d in age_group_summary.values()]),
+            'birth_mode_labels': json.dumps([item['birth_mode'] for item in birth_mode_summary]), 
+            'birth_mode_data': json.dumps([item['count'] for item in birth_mode_summary]),
         })
         return context
 
