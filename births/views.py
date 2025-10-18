@@ -28,7 +28,7 @@ from .data import LOCATION_DATA, DISTRICT_CHOICES
 # HELPER FUNCTIONS
 # ==========================================================
 def is_admin_or_superuser(user):
-    """Permission check for reporting views."""
+    """Permission check for admin-level reporting views."""
     return user.is_superuser or user.groups.filter(name='Admin').exists()
 
 
@@ -41,68 +41,60 @@ class LandingPageView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # 1. Get and clean filter values from the URL
         selected_date = self.request.GET.get('report_date') or None
         selected_district = self.request.GET.get('district') or None
         selected_municipality = self.request.GET.get('local_municipality') or None
         selected_facility = self.request.GET.get('facility') or None
 
-        # 2. Filter the base queryset for deliveries
         deliveries_qs = Delivery.objects.all()
         if selected_date: deliveries_qs = deliveries_qs.filter(report_date=selected_date)
         if selected_district: deliveries_qs = deliveries_qs.filter(district=selected_district)
         if selected_municipality: deliveries_qs = deliveries_qs.filter(local_municipality=selected_municipality)
         if selected_facility: deliveries_qs = deliveries_qs.filter(facility=selected_facility)
         
-        # 3. Create the babies queryset based on the filtered deliveries
         babies_qs = Baby.objects.filter(delivery__in=deliveries_qs)
 
-        # 4. KPI Card Calculations
         total_births = babies_qs.count()
         total_males = babies_qs.filter(gender='Male').count()
         total_females = babies_qs.filter(gender='Female').count()
         total_nil_reports = deliveries_qs.filter(no_births_to_report=True).count()
 
-        # 5. Dynamic Summary Table Logic
         if selected_facility:
-            group_by_field, title, header, footer = 'facility', f'Births in {selected_facility}', 'Facility', selected_facility
+            group_by, title, header, footer = 'facility', f'Births in {selected_facility}', 'Facility', selected_facility
         elif selected_municipality:
-            group_by_field, title, header, footer = 'facility', f'Births per Facility in {selected_municipality}', 'Facility', selected_municipality
+            group_by, title, header, footer = 'facility', f'Births per Facility in {selected_municipality}', 'Facility', selected_municipality
         elif selected_district:
-            group_by_field, title, header, footer = 'local_municipality', f'Births per Local Municipality in {selected_district}', 'Local Municipality', selected_district
+            group_by, title, header, footer = 'local_municipality', f'Births per Local Municipality in {selected_district}', 'Local Municipality', selected_district
         else:
-            group_by_field, title, header, footer = 'district', 'Births per District', 'District', 'Eastern Cape'
+            group_by, title, header, footer = 'district', 'Births per District', 'District', 'Eastern Cape'
         
-        summary_data = deliveries_qs.filter(no_births_to_report=False).values(group_by_field).annotate(
+        summary_data = deliveries_qs.filter(no_births_to_report=False).values(group_by).annotate(
             total_babies=Count('babies'), male_count=Count('babies', filter=Q(babies__gender='Male')),
-            female_count=Count('babies', filter=Q(babies__gender='Female'))).order_by(group_by_field)
+            female_count=Count('babies', filter=Q(babies__gender='Female'))).order_by(group_by)
         
-        context.update({'summary_title': title, 'summary_table_header': header, 'summary_footer_title': footer, 'summary_group_by': group_by_field})
+        context.update({'summary_title': title, 'summary_table_header': header, 'summary_footer_title': footer, 'summary_group_by': group_by})
 
-        # 6. Other Chart/Table Data Queries
-        age_group_labels, age_group_counts = ["10 - 14 yrs", "15 - 19 yrs", "20 - 35 yrs", "35+ yrs"], {label: 0 for label in ["10 - 14 yrs", "15 - 19 yrs", "20 - 35 yrs", "35+ yrs"]}
+        age_labels, age_counts = ["10-14", "15-19", "20-35", "35+"], {l: 0 for l in ["10-14", "15-19", "20-35", "35+"]}
         today = date.today()
         for baby in babies_qs.select_related('delivery').filter(delivery__mother_dob__isnull=False):
             age = today.year - baby.delivery.mother_dob.year - ((today.month, today.day) < (baby.delivery.mother_dob.month, baby.delivery.mother_dob.day))
-            if 10 <= age <= 14: age_group_counts["10 - 14 yrs"] += 1
-            elif 15 <= age <= 19: age_group_counts["15 - 19 yrs"] += 1
-            elif 20 <= age <= 35: age_group_counts["20 - 35 yrs"] += 1
-            elif age > 35: age_group_counts["35+ yrs"] += 1
+            if 10 <= age <= 14: age_counts["10-14"] += 1
+            elif 15 <= age <= 19: age_counts["15-19"] += 1
+            elif 20 <= age <= 35: age_counts["20-35"] += 1
+            elif age > 35: age_counts["35+"] += 1
         
         birth_mode_summary = deliveries_qs.filter(no_births_to_report=False, birth_mode__isnull=False).exclude(birth_mode__exact='').values('birth_mode').annotate(count=Count('id')).order_by('-count')
         time_slot_summary = deliveries_qs.filter(no_births_to_report=False).values('time_slot').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_slot=Count('babies')).order_by('time_slot')
         facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
 
-        # 7. Pass all data to the context
         context.update({
             'total_births': total_births, 'total_males': total_males, 'total_females': total_females,
             'total_nil_reports': total_nil_reports, 'summary_data': summary_data,
-            'form_title': "Festive Season Dashboard", 'selected_date': selected_date,
-            'selected_district': selected_district, 'selected_municipality': selected_municipality, 'selected_facility': selected_facility,
+            'form_title': "Festive Season Dashboard", 'selected_date': selected_date, 'selected_district': selected_district,
+            'selected_municipality': selected_municipality, 'selected_facility': selected_facility,
             'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
-            'age_group_labels': json.dumps(age_group_labels), 'age_group_data': json.dumps(list(age_group_counts.values())),
-            'birth_mode_labels': json.dumps([item['birth_mode'] for item in birth_mode_summary]), 
-            'birth_mode_data': json.dumps([item['count'] for item in birth_mode_summary]),
+            'age_group_labels': json.dumps(age_labels), 'age_group_data': json.dumps(list(age_counts.values())),
+            'birth_mode_labels': json.dumps([i['birth_mode'] for i in birth_mode_summary]), 'birth_mode_data': json.dumps([i['count'] for i in birth_mode_summary]),
             'time_slot_summary': time_slot_summary, 'facility_type_summary': facility_type_summary,
         })
         return context
@@ -169,11 +161,16 @@ class DeliveryDeleteView(LoginRequiredMixin, DeleteView):
 # ==========================================================
 @login_required
 def export_full_report_excel(request):
-    workbook = openpyxl.Workbook(); sheet = workbook.active; sheet.title = 'Festive Births Full Report'; headers = ['Timestamp', 'Report Date', 'Time Slot', 'District', 'Local Municipality', 'Facility', 'Facility Type', 'Mother Name', 'Mother Surname', 'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 'Baby Number', 'Baby Gender', 'Baby Weight (grams)']; header_font = Font(bold=True, color="FFFFFF"); header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    user = request.user; queryset = Delivery.objects.prefetch_related('babies').order_by('timestamp')
+    if not user.is_superuser:
+        if user.groups.filter(name='Admin').exists(): queryset = queryset.filter(district=user.profile.district)
+        elif user.groups.filter(name='User').exists(): queryset = queryset.filter(facility=user.profile.facility)
+        else: queryset = queryset.none()
+    workbook = openpyxl.Workbook(); sheet = workbook.active; sheet.title = 'Festive Births Full Report'; headers = ['Timestamp', 'Report Date', 'Time Slot', 'District', 'Local Municipality', 'Facility', 'Facility Type', 'Mother Full Name', 'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 'Baby Number', 'Baby Gender', 'Baby Weight (grams)']; header_font = Font(bold=True, color="FFFFFF"); header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", fill_type="solid")
     for col_num, title in enumerate(headers, 1): cell = sheet.cell(row=1, column=col_num, value=title); cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center')
-    for delivery in Delivery.objects.prefetch_related('babies').order_by('timestamp'):
+    for delivery in queryset:
         common = [delivery.timestamp.strftime('%Y-%m-%d %H:%M'), delivery.report_date, delivery.time_slot, delivery.district, delivery.local_municipality, delivery.facility, delivery.facility_type, delivery.mother_full_name, delivery.mother_dob.strftime('%Y-%m-%d') if delivery.mother_dob else '', delivery.gravidity, delivery.parity, delivery.birth_mode, 'Yes' if delivery.born_before_arrival else 'No'];
-        if delivery.no_births_to_report: sheet.append(common[:8] + ['N/A'] + common[9:] + ['NIL Report', 'N/A', 'N/A'])
+        if delivery.no_births_to_report: sheet.append(common[:7] + ['N/A'] + common[8:] + ['NIL Report', 'N/A', 'N/A'])
         else:
             for i, baby in enumerate(delivery.babies.all(), 1): sheet.append(common + [i, baby.gender, baby.weight])
     for col in sheet.columns: length = max(len(str(cell.value or '')) for cell in col); sheet.column_dimensions[col[0].column_letter].width = length + 2
