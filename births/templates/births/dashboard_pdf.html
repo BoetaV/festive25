@@ -216,6 +216,36 @@
                 </tr>
             </tfoot>
         </table>
+        <!-- ============================================= -->
+        <!-- TEENAGE PREGNANCIES TABLE (NEW) -->
+        <!-- ============================================= -->
+        <h2>Teenage Pregnancies by Facility</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Facility Name</th>
+                    <th>Births (10 - 14 yrs)</th>
+                    <th>Births (15 - 19 yrs)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in teenage_pregnancy_summary %}
+                    {# Only show facilities that have at least one teenage birth #}
+                    {% if summary.group_10_14 > 0 or summary.group_15_19 > 0 %}
+                    <tr>
+                        <td>{{ summary.facility }}</td>
+                        <td>{{ summary.group_10_14 }}</td>
+                        <td>{{ summary.group_15_19 }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                
+                {# Add an 'empty' case specifically for this loop #}
+                {% if not teenage_pregnancy_summary %}
+                <tr><td colspan="3" style="text-align: center;">No teenage pregnancy data available for this selection.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
     </main>
 
 </body>
