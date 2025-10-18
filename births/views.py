@@ -168,7 +168,6 @@ class DeliveryDeleteView(LoginRequiredMixin, DeleteView):
 # REPORTING VIEWS
 # ==========================================================
 @login_required
-@user_passes_test(is_admin_or_superuser)
 def export_full_report_excel(request):
     workbook = openpyxl.Workbook(); sheet = workbook.active; sheet.title = 'Festive Births Full Report'; headers = ['Timestamp', 'Report Date', 'Time Slot', 'District', 'Local Municipality', 'Facility', 'Facility Type', 'Mother Name', 'Mother Surname', 'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 'Baby Number', 'Baby Gender', 'Baby Weight (grams)']; header_font = Font(bold=True, color="FFFFFF"); header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
     for col_num, title in enumerate(headers, 1): cell = sheet.cell(row=1, column=col_num, value=title); cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center')
@@ -186,7 +185,6 @@ class DashboardReportFilterView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs); context['form'] = DashboardReportFilterForm(); context['form_title'] = 'Generate Dashboard PDF Report'; return context
 
 @login_required
-@user_passes_test(is_admin_or_superuser)
 def generate_dashboard_pdf(request):
     landing_page_view = LandingPageView(); landing_page_view.request = request; context = landing_page_view.get_context_data()
     report_title = "Provincial Dashboard Report"
