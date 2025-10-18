@@ -14,10 +14,30 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
     <style>
-        body {
-            padding-top: 70px; /* Offset for fixed navbar */
+        /* Make the body and html take up the full height of the viewport */
+        html, body {
+            height: 100%;
         }
-        /* Custom styles for dropdowns on dark theme */
+
+        /* Main body styling */
+        body {
+            display: flex; /* Enables flexbox layout for sticky footer */
+            flex-direction: column; /* Stacks children vertically (navbar, main, footer) */
+            padding-top: 70px; /* Offset for the fixed-top navbar */
+        }
+
+        /* Main content area styling */
+        main {
+            flex-shrink: 0; /* Prevent main content from shrinking */
+            flex-grow: 1;   /* Allow main content to grow and push the footer down */
+        }
+
+        /* Footer styling */
+        .footer {
+            flex-shrink: 0; /* The footer should never shrink */
+        }
+
+        /* Custom styles for dropdowns on the dark theme */
         .dropdown-menu {
             background-color: #343a40;
         }
@@ -119,6 +139,25 @@
         {% block content %}
         {% endblock content %}
     </main>
+
+        <!-- ============================================= -->
+    <!-- FOOTER (NEW) -->
+    <!-- ============================================= -->
+    <footer class="footer mt-auto py-3 bg-dark text-white-50">
+        <div class="container text-center">
+            <small>
+                <p class="mb-1">
+                    This system is the sole property and creation of <strong>Vernon Mosterd</strong>.
+                </p>
+                <p class="mb-0">
+                    Developed as a personal project driven by a passion for systems development and automation.
+                    The Eastern Cape Department of Health is hereby granted a royalty-free, non-exclusive license to use this system.
+                    All rights, title, and interest in and to the source code and intellectual property remain with the creator.
+                    &copy; {% now "Y" %} Vernon Mosterd. All Rights Reserved.
+                </p>
+            </small>
+        </div>
+    </footer>
 
     <!-- JavaScript Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
