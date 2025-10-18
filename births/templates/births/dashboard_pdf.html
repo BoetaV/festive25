@@ -14,62 +14,136 @@
 
     <main>
         <h2>Overall Summary</h2>
-        <table class="kpi-table">
-            <tr><th>Total Births</th><td>{{ total_births }}</td></tr>
-            <tr><th>Total Males</th><td>{{ total_males }}</td></tr>
-            <tr><th>Total Females</th><td>{{ total_females }}</td></tr>
-            <tr><th>NIL Reports Submitted</th><td>{{ total_nil_reports }}</td></tr>
+        <table class="summary-table" style="width: 60%;">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total Births</td>
+                    <td>{{ total_births }}</td>
+                </tr>
+                <tr>
+                    <td>Total Males</td>
+                    <td>{{ total_males }}</td>
+                </tr>
+                <tr>
+                    <td>Total Females</td>
+                    <td>{{ total_females }}</td>
+                </tr>
+                <tr>
+                    <td>NIL Reports Submitted</td>
+                    <td>{{ total_nil_reports }}</td>
+                </tr>
+            </tbody>
         </table>
 
         <h2>Breakdown by {{ summary_table_header }}</h2>
         <table class="summary-table">
-            <!-- ... (This table for District/Municipality is unchanged) ... -->
+            <thead>
+                <tr>
+                    <th>{{ summary_table_header }}</th>
+                    <th>Total Babies</th>
+                    <th>Males</th>
+                    <th>Females</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in summary_data %}
+                <tr>
+                    <!-- This dynamically shows District, Municipality, or Facility name -->
+                    <td>{{ summary|get_item:summary_group_by }}</td>
+                    
+                    <td>{{ summary.total_babies }}</td>
+                    <td>{{ summary.male_count }}</td>
+                    <td>{{ summary.female_count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" style="text-align: center;">No data found for this selection.</td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <!-- This dynamically shows 'Eastern Cape' or the selected District/Municipality name -->
+                    <th>{{ summary_footer_title }} Total</th>
+                    
+                    <td>{{ total_births }}</td>
+                    <td>{{ total_males }}</td>
+                    <td>{{ total_females }}</td>
+                </tr>
+            </tfoot>
         </table>
-
         <!-- ============================================= -->
-        <!-- BIRTHS BY AGE GROUP TABLE (NEW) -->
+        <!-- BIRTHS BY AGE GROUP TABLE (NEW & IMPROVED) -->
         <!-- ============================================= -->
         <h2>Births by Mother's Age Group</h2>
         <table class="summary-table">
             <thead>
                 <tr>
                     <th>Age Group</th>
-                    <th>Number of Births</th>
+                    <th>Males</th>
+                    <th>Females</th>
+                    <th>Total</th>
                 </tr>
             </thead>
             <tbody>
-                {% for label, count in age_group_data.items %}
+                {% for group_label, counts in age_group_summary.items %}
                 <tr>
-                    <td>{{ label }}</td>
-                    <td>{{ count }}</td>
+                    <td>{{ group_label }}</td>
+                    <td>{{ counts.male_count }}</td>
+                    <td>{{ counts.female_count }}</td>
+                    <td style="font-weight: bold;">{{ counts.total }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="2" style="text-align: center;">No data available for age groups.</td></tr>
+                <tr><td colspan="4" style="text-align: center;">No data available for age groups.</td></tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                <tr>
+                    <th>Grand Total</th>
+                    <th>{{ total_males }}</th>
+                    <th>{{ total_females }}</th>
+                    <th>{{ total_births }}</th>
+                </tr>
+            </tfoot>
         </table>
 
         <!-- ============================================= -->
-        <!-- BIRTHS BY BIRTH MODE TABLE (NEW) -->
+        <!-- BIRTHS BY BIRTH MODE TABLE (NEW & IMPROVED) -->
         <!-- ============================================= -->
         <h2>Births by Birth Mode</h2>
         <table class="summary-table">
             <thead>
                 <tr>
                     <th>Birth Mode</th>
-                    <th>Number of Deliveries</th>
+                    <th>Males</th>
+                    <th>Females</th>
+                    <th>Total Births</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in birth_mode_data %}
+                {% for summary in birth_mode_summary %}
                 <tr>
-                    <td>{{ item.birth_mode }}</td>
-                    <td>{{ item.count }}</td>
+                    <td>{{ summary.birth_mode }}</td>
+                    <td>{{ summary.male_count }}</td>
+                    <td>{{ summary.female_count }}</td>
+                    <td style="font-weight: bold;">{{ summary.total }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="2" style="text-align: center;">No data available for birth modes.</td></tr>
+                <tr><td colspan="4" style="text-align: center;">No data available for birth modes.</td></tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                <tr>
+                    <th>Grand Total</th>
+                    <th>{{ total_males }}</th>
+                    <th>{{ total_females }}</th>
+                    <th>{{ total_births }}</th>
+                </tr>
+            </tfoot>
         </table>
 
         <!-- ============================================= -->
