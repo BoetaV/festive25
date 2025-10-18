@@ -81,7 +81,7 @@ class LandingPageView(TemplateView):
 
         # 6. Other Chart/Table Data Queries
         
-        # --- NEW & IMPROVED AGE GROUP CALCULATION ---
+        # Age Group Calculation
         age_group_labels = ["10-14 yrs", "15-19 yrs", "20-35 yrs", "35+ yrs"]
         age_group_summary = {label: {'male_count': 0, 'female_count': 0, 'total': 0} for label in age_group_labels}
         today = date.today()
@@ -99,7 +99,17 @@ class LandingPageView(TemplateView):
                     elif baby.gender == 'Female': age_group_summary[age_group]['female_count'] += 1
                     age_group_summary[age_group]['total'] += 1
         
-        birth_mode_summary = deliveries_qs.filter(no_births_to_report=False, birth_mode__isnull=False).exclude(birth_mode__exact='').values('birth_mode').annotate(count=Count('id')).order_by('-count')
+        # --- CORRECTED BIRTH MODE QUERY ---
+        birth_mode_summary = deliveries_qs.filter(
+            no_births_to_report=False, birth_mode__isnull=False
+        ).exclude(
+            birth_mode__exact=''
+        ).values('birth_mode').annotate(
+            male_count=Count('babies', filter=Q(babies__gender='Male')),
+            female_count=Count('babies', filter=Q(babies__gender='Female')),
+            total=Count('babies') # This now correctly counts babies for each mode
+        ).order_by('birth_mode')
+
         time_slot_summary = deliveries_qs.filter(no_births_to_report=False).values('time_slot').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_slot=Count('babies')).order_by('time_slot')
         facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
 
@@ -111,17 +121,17 @@ class LandingPageView(TemplateView):
             'selected_municipality': selected_municipality, 'selected_facility': selected_facility,
             'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
 
-            # Data for the new table-based summaries
+            # Data for tables
             'age_group_summary': age_group_summary,
-            'birth_mode_summary_table': birth_mode_summary, # Pass the raw queryset for the table
+            'birth_mode_summary': birth_mode_summary, # Pass the full summary for the table
             'time_slot_summary': time_slot_summary,
             'facility_type_summary': facility_type_summary,
 
-            # Data for the charts (can be removed if you no longer have charts on the main dashboard)
+            # Data for charts on the web dashboard
             'age_group_labels': json.dumps(list(age_group_summary.keys())),
             'age_group_data': json.dumps([d['total'] for d in age_group_summary.values()]),
             'birth_mode_labels': json.dumps([item['birth_mode'] for item in birth_mode_summary]), 
-            'birth_mode_data': json.dumps([item['count'] for item in birth_mode_summary]),
+            'birth_mode_data': json.dumps([item['total'] for item in birth_mode_summary]),
         })
         return context
 
