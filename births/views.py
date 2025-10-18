@@ -161,20 +161,78 @@ class DeliveryDeleteView(LoginRequiredMixin, DeleteView):
 # ==========================================================
 @login_required
 def export_full_report_excel(request):
-    user = request.user; queryset = Delivery.objects.prefetch_related('babies').order_by('timestamp')
+    user = request.user
+    queryset = Delivery.objects.prefetch_related('babies').order_by('timestamp')
+
+    # Apply permission-based filtering
     if not user.is_superuser:
-        if user.groups.filter(name='Admin').exists(): queryset = queryset.filter(district=user.profile.district)
-        elif user.groups.filter(name='User').exists(): queryset = queryset.filter(facility=user.profile.facility)
-        else: queryset = queryset.none()
-    workbook = openpyxl.Workbook(); sheet = workbook.active; sheet.title = 'Festive Births Full Report'; headers = ['Timestamp', 'Report Date', 'Time Slot', 'District', 'Local Municipality', 'Facility', 'Facility Type', 'Mother Full Name', 'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 'Baby Number', 'Baby Gender', 'Baby Weight (grams)']; header_font = Font(bold=True, color="FFFFFF"); header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", fill_type="solid")
-    for col_num, title in enumerate(headers, 1): cell = sheet.cell(row=1, column=col_num, value=title); cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center')
-    for delivery in queryset:
-        common = [delivery.timestamp.strftime('%Y-%m-%d %H:%M'), delivery.report_date, delivery.time_slot, delivery.district, delivery.local_municipality, delivery.facility, delivery.facility_type, delivery.mother_full_name, delivery.mother_dob.strftime('%Y-%m-%d') if delivery.mother_dob else '', delivery.gravidity, delivery.parity, delivery.birth_mode, 'Yes' if delivery.born_before_arrival else 'No'];
-        if delivery.no_births_to_report: sheet.append(common[:7] + ['N/A'] + common[8:] + ['NIL Report', 'N/A', 'N/A'])
+        if user.groups.filter(name='Admin').exists():
+            queryset = queryset.filter(district=user.profile.district)
+        elif user.groups.filter(name='User').exists():
+            queryset = queryset.filter(facility=user.profile.facility)
         else:
-            for i, baby in enumerate(delivery.babies.all(), 1): sheet.append(common + [i, baby.gender, baby.weight])
-    for col in sheet.columns: length = max(len(str(cell.value or '')) for cell in col); sheet.column_dimensions[col[0].column_letter].width = length + 2
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); response['Content-Disposition'] = 'attachment; filename="festive_births_full_report.xlsx"'; workbook.save(response); return response
+            queryset = queryset.none()
+
+    # --- SETUP EXCEL WORKBOOK ---
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = 'Festive Births Full Report'
+
+    # 1. ADD THE NEW 'TIME OF BIRTH' HEADER
+    headers = [
+        'Timestamp', 'Report Date', 'Time Slot', 'Time of Birth', 'District', 
+        'Local Municipality', 'Facility', 'Facility Type', 'Mother Full Name', 
+        'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 
+        'Baby Number', 'Baby Gender', 'Baby Weight (grams)'
+    ]
+    
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+
+    for col_num, title in enumerate(headers, 1):
+        cell = sheet.cell(row=1, column=col_num, value=title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    # --- POPULATE DATA ---
+    for delivery in queryset:
+        # 2. ADD THE 'delivery_time' FIELD TO THE COMMON DATA LIST
+        common_data = [
+            delivery.timestamp.strftime('%Y-%m-%d %H:%M'),
+            delivery.report_date,
+            delivery.time_slot,
+            delivery.delivery_time.strftime('%H:%M') if delivery.delivery_time else '', # Format the time
+            delivery.district,
+            delivery.local_municipality,
+            delivery.facility,
+            delivery.facility_type,
+            delivery.mother_full_name,
+            delivery.mother_dob.strftime('%Y-%m-%d') if delivery.mother_dob else '',
+            delivery.gravidity,
+            delivery.parity,
+            delivery.birth_mode,
+            'Yes' if delivery.born_before_arrival else 'No',
+        ]
+
+        if delivery.no_births_to_report:
+            # Add placeholders for baby-specific fields
+            sheet.append(common_data + ['NIL Report', 'N/A', 'N/A'])
+        else:
+            for i, baby in enumerate(delivery.babies.all(), 1):
+                # Append baby-specific data to the common data
+                sheet.append(common_data + [i, baby.gender, baby.weight])
+
+    # --- FINALIZE AND SERVE ---
+    # Auto-size columns
+    for col in sheet.columns:
+        length = max(len(str(cell.value or '')) for cell in col)
+        sheet.column_dimensions[col[0].column_letter].width = length + 2
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="festive_births_full_report.xlsx"'
+    workbook.save(response)
+    return response
 
 class DashboardReportFilterView(LoginRequiredMixin, TemplateView):
     template_name = 'births/dashboard_report_filter.html'
