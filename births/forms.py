@@ -210,11 +210,34 @@ BabyFormSet = inlineformset_factory(
     }
 )
 
+# ==========================================================
+# FINAL FORM FOR THE PDF REPORT FILTER
+# ==========================================================
 class DashboardReportFilterForm(forms.Form):
-    district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=True, label="Select District")
-    local_municipality = forms.ChoiceField(choices=[('', 'All Municipalities')], required=False, label="Select Local Municipality (Optional)")
-    facility = forms.ChoiceField(choices=[('', 'All Facilities')], required=False, label="Select Facility (Optional)")
+    # Create a new choices list by adding an "All Districts" option
+    # to the start of the existing DISTRICT_CHOICES list.
+    ALL_DISTRICTS_CHOICES = [('', 'All Districts')] + [(d[0], d[1]) for d in DISTRICT_CHOICES if d[0]]
+
+    # The District field now uses the new choices list and is not required.
+    district = forms.ChoiceField(
+        choices=ALL_DISTRICTS_CHOICES, 
+        required=False, 
+        label="Select District"
+    )
+    
+    # The dependent fields are also not required.
+    local_municipality = forms.ChoiceField(
+        choices=[('', 'All Municipalities')], 
+        required=False, 
+        label="Select Local Municipality (Optional)"
+    )
+    facility = forms.ChoiceField(
+        choices=[('', 'All Facilities')], 
+        required=False, 
+        label="Select Facility (Optional)"
+    )
 
     def __init__(self, *args, **kwargs):
+        # The __init__ method is not needed for this form's core functionality,
+        # but it's good practice to keep it for potential future customizations.
         super().__init__(*args, **kwargs)
-        # This will be populated by JavaScript, similar to your other forms
