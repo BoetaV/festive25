@@ -28,7 +28,7 @@ urlpatterns = [
     ),
 
     path('reports/dashboard-filter/', views.DashboardReportFilterView.as_view(), name='dashboard_report_filter'),
-    path('reports/generate-dashboard-pdf/', views.generate_dashboard_pdf, name='generate_dashboard_pdf'),
+    path('reports/generate-dashboard-pdf/', views.GenerateDashboardPDF.as_view(), name='generate_dashboard_pdf'),
     
     # List View: The main table of all deliveries
     path('deliveries/', views.DeliveryListView.as_view(), name='delivery_list'),
