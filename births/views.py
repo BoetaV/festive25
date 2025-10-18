@@ -117,14 +117,20 @@ class LandingPageView(TemplateView):
         facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
 
         # Teenage Pregnancy (Table)
+        today = date.today() # Make sure today is defined
         date_10_years_ago = today.replace(year=today.year - 10)
         date_15_years_ago = today.replace(year=today.year - 15)
         date_20_years_ago = today.replace(year=today.year - 20)
+        
         teenage_pregnancy_summary = deliveries_qs.filter(
-            no_births_to_report=False, mother_dob__isnull=False, mother_dob__gte=date_20_years_ago
+            no_births_to_report=False, 
+            mother_dob__isnull=False, 
+            mother_dob__gte=date_20_years_ago
         ).values('facility').annotate(
-            group_10_14=Count('babies', filter=Q(delivery__mother_dob__range=(date_15_years_ago + timedelta(days=1), date_10_years_ago))),
-            group_15_19=Count('babies', filter=Q(delivery__mother_dob__range=(date_20_years_ago, date_15_years_ago)))
+            # --- THIS IS THE CORRECTION ---
+            # We are already on the Delivery model, so just use 'mother_dob' directly.
+            group_10_14=Count('babies', filter=Q(mother_dob__range=(date_15_years_ago + timedelta(days=1), date_10_years_ago))),
+            group_15_19=Count('babies', filter=Q(mother_dob__range=(date_20_years_ago, date_15_years_ago)))
         ).order_by('facility')
 
         # 7. Pass all data to the context
