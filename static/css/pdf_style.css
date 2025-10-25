@@ -1,0 +1,85 @@
+/* static/css/pdf_style.css */
+
+/* --- General Page Setup --- */
+@page {
+    size: A4 portrait; /* <-- THIS IS THE ONLY CHANGE NEEDED HERE */
+    margin: 1.5cm;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 8pt; /* Use a smaller base font for compact reports */
+    color: #333;
+}
+
+header {
+    text-align: center;
+    border-bottom: 2px solid #4F81BD;
+    padding-bottom: 5px;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 16pt;
+    color: #365F91;
+    margin-bottom: 5px;
+    /* Reset styles from your old h1 rule */
+    text-align: center;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+h2 {
+    font-size: 12pt;
+    color: #4F81BD;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 3px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+/* --- Layout for Dashboard PDF --- */
+.two-column-layout {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    page-break-inside: avoid;
+}
+
+.column {
+    flex: 1;
+    min-width: 0;
+}
+
+/* --- Table Styles --- */
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}
+
+.summary-table th,
+.summary-table td {
+    padding: 4px 6px; /* Reduced padding for compactness */
+    text-align: left;
+    border: 1px solid #999;
+}
+
+.summary-table thead th {
+    background-color: #4F81BD;
+    color: #FFFFFF;
+    font-weight: bold;
+    text-align: center;
+}
+
+.summary-table tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+.summary-table tfoot th,
+.summary-table tfoot td {
+    background-color: #e8e8e8;
+    font-weight: bold;
+    border-top: 2px solid #333; /* Make the top border of the footer thicker */
+}
