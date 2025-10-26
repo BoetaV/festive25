@@ -27,14 +27,19 @@ from .forms import DeliveryForm, BabyFormSet, DashboardReportFilterForm
 from .data import LOCATION_DATA, DISTRICT_CHOICES
 
 # ==========================================================
-# HELPER FUNCTIONS
+# HELPER FUNCTIONS & PERMISSION MIXINS
 # ==========================================================
-# def is_admin_or_superuser(user):
-#     """Permission check for admin-level functionality."""
-#     return user.is_authenticated and (user.is_superuser or user.groups.filter(name='Admin').exists())
+def can_modify_data(user):
+    """Permission check for users who can create/edit/delete data."""
+    return user.is_authenticated and not user.groups.filter(name='ProvinceUser').exists()
+
+class DataEditorRequiredMixin(UserPassesTestMixin):
+    """Mixin to apply the can_modify_data permission check to views."""
+    def test_func(self):
+        return can_modify_data(self.request.user)
 
 # ==========================================================
-# PUBLIC DASHBOARD VIEW (NOW PERMISSION-AWARE)
+# DASHBOARD VIEW
 # ==========================================================
 class LandingPageView(TemplateView):
     template_name = 'landing.html'
@@ -43,25 +48,24 @@ class LandingPageView(TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
+        # Start with the base queryset
         deliveries_qs = Delivery.objects.all()
 
         # Apply user role-based filtering ONLY if the user is authenticated
         if user.is_authenticated:
-            # Superusers and ProvinceUsers see everything, so we only filter for Admins and Users.
             if not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
                 if user.groups.filter(name='Admin').exists():
                     deliveries_qs = deliveries_qs.filter(district=user.profile.district)
                 elif user.groups.filter(name='User').exists():
                     deliveries_qs = deliveries_qs.filter(facility=user.profile.facility)
-        
-        # 1. Get and clean filter values from the URL
+
+        # Get and clean URL filter values
         selected_date = self.request.GET.get('report_date') or None
         selected_district = self.request.GET.get('district') or None
         selected_municipality = self.request.GET.get('local_municipality') or None
         selected_facility = self.request.GET.get('facility') or None
 
-        # 2. Filter the base queryset for deliveries based on URL filters
-        deliveries_qs = Delivery.objects.all()
+        # Apply URL filters on top of the (potentially) permission-filtered queryset
         if selected_date: deliveries_qs = deliveries_qs.filter(report_date=selected_date)
         if selected_district: deliveries_qs = deliveries_qs.filter(district=selected_district)
         if selected_municipality: deliveries_qs = deliveries_qs.filter(local_municipality=selected_municipality)
@@ -167,13 +171,18 @@ class DeliveryListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         user = self.request.user
         queryset = super().get_queryset().prefetch_related('babies').order_by('-timestamp')
-        if not user.is_superuser:
-            if user.groups.filter(name='Admin').exists():
-                queryset = queryset.filter(district=user.profile.district)
-            elif user.groups.filter(name='User').exists():
-                queryset = queryset.filter(facility=user.profile.facility)
-            else:
-                return queryset.none()
+        
+        # If user is Superuser OR ProvinceUser, show all data.
+        if user.is_superuser or user.groups.filter(name='ProvinceUser').exists():
+            pass # No filter is applied
+        # Otherwise, filter by Admin or User role
+        elif user.groups.filter(name='Admin').exists():
+            queryset = queryset.filter(district=user.profile.district)
+        elif user.groups.filter(name='User').exists():
+            queryset = queryset.filter(facility=user.profile.facility)
+        else:
+            return queryset.none()
+        
         query = self.request.GET.get('q')
         if query:
             queryset = queryset.filter(

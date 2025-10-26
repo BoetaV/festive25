@@ -31,21 +31,3 @@ class ForcePasswordChangeMiddleware:
                     return redirect('password_change')
         
         return response
-
-
-class ActiveUserMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        response = self.get_response(request)
-        
-        if request.user.is_authenticated and not request.user.is_superuser:
-            cache_key = f'last-seen-{request.user.id}'
-            
-            # Store a dictionary with the timestamp
-            cache.set(cache_key, {
-                'last_activity': timezone.now()
-            }, 300) # 5-minute timeout
-
-        return response

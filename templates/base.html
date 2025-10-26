@@ -16,18 +16,9 @@
     
     <style>
         html, body { height: 100%; }
-        body {
-            display: flex;
-            flex-direction: column;
-            padding-top: 70px; /* Offset for the fixed-top navbar */
-        }
-        main {
-            flex-grow: 1; /* Allow main content to grow and push the footer down */
-        }
-        .footer {
-            flex-shrink: 0; /* Footer should not shrink */
-        }
-        /* Custom styles for dropdowns on the dark theme */
+        body { display: flex; flex-direction: column; padding-top: 70px; }
+        main { flex-grow: 1; }
+        .footer { flex-shrink: 0; }
         .dropdown-menu { background-color: #343a40; }
         .dropdown-item { color: #f8f9fa; }
         .dropdown-item:hover, .dropdown-item:focus { background-color: #495057; color: #fff; }
@@ -42,7 +33,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarColor02">
                 
-                <!-- Left-aligned navigation items -->
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
                         <li class="nav-item"><a class="nav-link" href="{% url 'delivery_list' %}">View Records</a></li>
@@ -63,23 +53,8 @@
                     {% endif %}
                 </ul>
 
-                <!-- Right-aligned user menu -->
                 <ul class="navbar-nav ms-auto align-items-center">
                     {% if user.is_authenticated %}
-                        <!-- Active Users Indicator -->
-                        <li class="nav-item me-2">
-                            {% if user.is_superuser or 'Admin' in user.groups.all|join:',' %}
-                                {% get_active_users as active_users %}
-                                <a href="{% url 'active_user_list' %}" class="nav-link position-relative" title="View active users">
-                                    <i class="fas fa-users"></i>
-                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
-                                        {{ active_users|length }}
-                                    </span>
-                                </a>
-                            {% endif %}
-                        </li>
-                        
-                        <!-- User Welcome Dropdown -->
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Welcome, {{ user.get_full_name }}
@@ -115,32 +90,19 @@
 
     {% block footer %}{% endblock footer %}
 
-    <!-- JavaScript Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-    <!-- ============================================= -->
-    <!-- THIS IS THE CRITICAL FIX -->
-    <!-- ============================================= -->
-    <!-- This script tag provides the container for page-specific JavaScript -->
     <script>
-        {% block javascript %}
-        // Child templates like birth_form.html will inject their JS code here.
-        {% endblock javascript %}
+        {% block javascript %}{% endblock javascript %}
     </script>
     
-    <!-- Site-wide JavaScript for auto-dismissing alerts -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(function(alert) {
-            setTimeout(function() {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            }, 3000);
-        });
+        alerts.forEach(function(alert) { setTimeout(function() { new bootstrap.Alert(alert).close(); }, 3000); });
     });
     </script>
 </body>
