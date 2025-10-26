@@ -30,8 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const municipalitySelect = document.getElementById('id_local_municipality');
     const facilitySelect = document.getElementById('id_facility');
 
-    // --- GET INITIAL VALUES FROM THE VIEW (for edit mode) ---
-    // The |default_if_none filter prevents errors if the variable doesn't exist.
+    // --- GET INITIAL VALUES (for Edit mode) ---
     const initialMunicipality = "{{ initial_municipality|default_if_none:'' }}";
     const initialFacility = "{{ initial_facility|default_if_none:'' }}";
 
@@ -61,15 +60,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(url);
             const data = await response.json();
             return data.options;
-        } catch (error) {
-            console.error('Failed to fetch options:', error);
-            return [];
-        }
+        } catch (error) { console.error('Failed to fetch options:', error); return []; }
     }
 
     function updateOptions(selectElement, options, selectedValue = null) {
         if (!selectElement) return;
-        selectElement.innerHTML = `<option value="">---------</option>`;
+        const placeholder = selectElement.querySelector('option[value=""]').textContent || '---------';
+        selectElement.innerHTML = `<option value="">${placeholder}</option>`;
         options.forEach(option => {
             const opt = document.createElement('option');
             opt.value = option;
@@ -79,53 +76,31 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             selectElement.appendChild(opt);
         });
-        // After updating options, dispatch a change event to trigger the next dropdown in the chain.
+        // Dispatch a 'change' event to trigger the next dropdown in the chain
         selectElement.dispatchEvent(new Event('change'));
     }
     
-    // --- EVENT LISTENERS ---
-    if (districtSelect) {
-        districtSelect.addEventListener('change', async function() {
-            const districtId = this.value;
-            const municipalities = await fetchOptions('district', districtId);
-            updateOptions(municipalitySelect, municipalities);
-        });
-    }
-
-    if (municipalitySelect) {
-        municipalitySelect.addEventListener('change', async function() {
-            const municipalityId = this.value;
-            const facilities = await fetchOptions('municipality', municipalityId);
-            // On edit, pre-select the initial facility if the municipality's value matches the initial value.
-            // This ensures that when the municipality dropdown is populated, it automatically selects the correct facility.
-            const selectedFacility = (municipalitySelect.value === initialMunicipality) ? initialFacility : null;
-            updateOptions(facilitySelect, facilities, selectedFacility);
-        });
-    }
+    // --- ATTACH EVENT LISTENERS ---
+    if (roleSelect) { roleSelect.addEventListener('change', toggleLocationFields); }
+    if (districtSelect) { districtSelect.addEventListener('change', async () => { const municipalities = await fetchOptions('district', districtSelect.value); updateOptions(municipalitySelect, municipalities); }); }
+    if (municipalitySelect) { municipalitySelect.addEventListener('change', async () => { const facilities = await fetchOptions('municipality', municipalitySelect.value); updateOptions(facilitySelect, facilities, (municipalitySelect.value === initialMunicipality) ? initialFacility : null); }); }
 
     // ==========================================================
-    // INITIALIZATION LOGIC (Runs once on page load)
+    // INITIALIZATION LOGIC (The Main Fix)
     // ==========================================================
     async function initializeForm() {
-        // 1. Set the correct visibility for location fields based on the initial role.
+        // 1. Set initial visibility of role-based fields
         toggleLocationFields();
 
-        // 2. If a district is already selected (for an Admin or in Edit mode)...
+        // 2. If a district is already selected (by an Admin or in Edit mode)...
         if (districtSelect && districtSelect.value) {
-            const districtId = districtSelect.value;
-            const municipalities = await fetchOptions('district', districtId);
-            
+            const municipalities = await fetchOptions('district', districtSelect.value);
             // ...populate the municipalities and pre-select the correct one if we are in edit mode.
             updateOptions(municipalitySelect, municipalities, initialMunicipality);
         }
     }
-    
-    // ATTACH ROLE LISTENER
-    if (roleSelect) {
-        roleSelect.addEventListener('change', toggleLocationFields);
-    }
-    
-    // RUN THE INITIALIZATION LOGIC
+
+    // RUN THE INITIALIZATION LOGIC ON PAGE LOAD
     initializeForm();
 });
 </script>
