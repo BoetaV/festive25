@@ -42,13 +42,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const facilityGroup = document.querySelector('#div_id_facility');
 
         if (municipalityGroup && facilityGroup) {
-            if (selectedRoleText === 'User') {
-                municipalityGroup.style.display = 'block';
-                facilityGroup.style.display = 'block';
-            } else {
-                municipalityGroup.style.display = 'none';
-                facilityGroup.style.display = 'none';
-            }
+            // This is the core logic: show for 'User', hide for others.
+            const showFields = (selectedRoleText === 'User');
+            municipalityGroup.style.display = showFields ? 'block' : 'none';
+            facilityGroup.style.display = showFields ? 'block' : 'none';
         }
     }
 
@@ -65,6 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateOptions(selectElement, options, selectedValue = null) {
         if (!selectElement) return;
+        // Preserve the placeholder text from the form definition
         const placeholder = selectElement.querySelector('option[value=""]').textContent || '---------';
         selectElement.innerHTML = `<option value="">${placeholder}</option>`;
         options.forEach(option => {
@@ -76,8 +74,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             selectElement.appendChild(opt);
         });
-        // Dispatch a 'change' event to trigger the next dropdown in the chain
-        selectElement.dispatchEvent(new Event('change'));
+        // Manually dispatch a change event AFTER a short delay to ensure DOM is updated
+        setTimeout(() => {
+            selectElement.dispatchEvent(new Event('change'));
+        }, 10);
     }
     
     // --- ATTACH EVENT LISTENERS ---
@@ -89,13 +89,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // INITIALIZATION LOGIC (The Main Fix)
     // ==========================================================
     async function initializeForm() {
-        // 1. Set initial visibility of role-based fields
+        // Run the role-based toggle first
         toggleLocationFields();
 
-        // 2. If a district is already selected (by an Admin or in Edit mode)...
+        // If a district is already selected...
         if (districtSelect && districtSelect.value) {
             const municipalities = await fetchOptions('district', districtSelect.value);
-            // ...populate the municipalities and pre-select the correct one if we are in edit mode.
+            // ...populate the municipalities and pre-select the correct one.
             updateOptions(municipalitySelect, municipalities, initialMunicipality);
         }
     }
