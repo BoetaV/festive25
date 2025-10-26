@@ -6,7 +6,7 @@
         <h2 class="card-title mb-0">Currently Active Users</h2>
     </div>
     <div class="card-body">
-        <p class="card-text text-muted">This list shows users who have been active on the site in the last 5 minutes.</p>
+        <p class="card-text text-muted">This list shows users who have made a request in the last 5 minutes.</p>
 
         <div class="table-responsive">
             <table class="table table-hover">
@@ -15,27 +15,28 @@
                         <th>Name</th>
                         <th>Role</th>
                         <th>Assigned Location</th>
-                        <th>Last Login</th>
+                        <th>Last Activity</th> {# <-- Renamed Header #}
                     </tr>
                 </thead>
                 <tbody class="text-white">
-                    {% for user in active_users %}
+                    {# Loop through the new context variable #}
+                    {% for data in active_users_data %}
                     <tr>
-                        <td>{{ user.get_full_name }}</td>
+                        <td>{{ data.user.get_full_name }}</td>
                         <td>
-                            {% for group in user.groups.all %}{{ group.name }}{% endfor %}
+                            {% for group in data.user.groups.all %}{{ group.name }}{% endfor %}
                         </td>
                         <td>
-                            {% if 'Admin' in user.groups.all|join:',' %}
-                                {{ user.profile.district }}
-                            {% elif 'User' in user.groups.all|join:',' %}
-                                {{ user.profile.facility }}
+                            {% if 'Admin' in data.user.groups.all|join:',' %}
+                                {{ data.user.profile.district }}
+                            {% elif 'User' in data.user.groups.all|join:',' %}
+                                {{ data.user.profile.facility }}
                             {% else %}
                                 --
                             {% endif %}
                         </td>
-
-                        <td>{{ user.last_login|timesince }} ago</td>
+                        {# Display the last_activity timestamp #}
+                        <td>{{ data.last_activity|timesince }} ago</td>
                     </tr>
                     {% empty %}
                     <tr>

@@ -34,21 +34,18 @@ class ForcePasswordChangeMiddleware:
 
 
 class ActiveUserMiddleware:
-    """
-    Updates a timestamp in the cache for the currently logged-in user
-    on each request, to track who is currently "active".
-    """
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
         
-        # Only track authenticated, non-superuser users
         if request.user.is_authenticated and not request.user.is_superuser:
             cache_key = f'last-seen-{request.user.id}'
             
-            # Set the cache with a 5-minute (300 seconds) timeout
-            cache.set(cache_key, timezone.now(), 300)
+            # Store a dictionary with the timestamp
+            cache.set(cache_key, {
+                'last_activity': timezone.now()
+            }, 300) # 5-minute timeout
 
         return response

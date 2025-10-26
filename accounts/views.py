@@ -43,18 +43,44 @@ class UserListView(AdminRequiredMixin, ListView):
         return queryset
 
 class ActiveUserListView(AdminRequiredMixin, ListView):
-    """Displays a list of users who have been active in the last 5 minutes."""
-    model = User
+    # We no longer set the model or queryset here, as we will build it manually
     template_name = 'accounts/active_user_list.html'
-    context_object_name = 'active_users'
+    context_object_name = 'active_users_data' # Use a more descriptive name
 
-    def get_queryset(self):
-        # ... (the optimized query logic)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # 1. Get all potential user IDs
         all_user_ids = User.objects.filter(is_superuser=False).values_list('id', flat=True)
+        
+        # 2. Construct all the cache keys
         cache_keys = [f'last-seen-{user_id}' for user_id in all_user_ids]
+        
+        # 3. Get all the values from the cache in a single bulk request
         found_caches = cache.get_many(cache_keys)
+        
+        # 4. Get the user IDs of the active users
         active_user_ids = [int(key.split('-')[-1]) for key in found_caches.keys()]
-        return User.objects.filter(id__in=active_user_ids).select_related('profile').order_by('-last_login')
+        
+        # 5. Fetch the user objects in a single query
+        active_users = User.objects.filter(id__in=active_user_ids).select_related('profile')
+        
+        # 6. Create the final list with user and their last activity time
+        active_users_data = []
+        for user in active_users:
+            cache_key = f'last-seen-{user.id}'
+            cached_data = found_caches.get(cache_key)
+            if cached_data:
+                active_users_data.append({
+                    'user': user,
+                    'last_activity': cached_data['last_activity']
+                })
+        
+        # 7. Sort the list to show the most recently active user first
+        active_users_data.sort(key=lambda x: x['last_activity'], reverse=True)
+
+        context['active_users_data'] = active_users_data
+        return context
 
 class UserCreateView(AdminRequiredMixin, CreateView):
     """Handles the creation of new users."""
