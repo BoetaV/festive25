@@ -22,7 +22,6 @@
 {% endblock content %}
 
 {% block javascript %}
-
 document.addEventListener('DOMContentLoaded', function() {
     // --- GRAB HTML ELEMENTS ---
     const roleSelect = document.getElementById('id_role');
@@ -42,7 +41,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const facilityGroup = document.querySelector('#div_id_facility');
 
         if (municipalityGroup && facilityGroup) {
-            // This is the core logic: show for 'User', hide for others.
             const showFields = (selectedRoleText === 'User');
             municipalityGroup.style.display = showFields ? 'block' : 'none';
             facilityGroup.style.display = showFields ? 'block' : 'none';
@@ -55,16 +53,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const url = `/ajax/load-options/?type=${type}&id=${id}`;
         try {
             const response = await fetch(url);
+            // Check if the request was successful before trying to parse JSON
+            if (!response.ok) {
+                console.error(`AJAX Error: ${response.status} ${response.statusText}`);
+                return [];
+            }
             const data = await response.json();
             return data.options;
-        } catch (error) { console.error('Failed to fetch options:', error); return []; }
+        } catch (error) { console.error('Failed to fetch or parse options:', error); return []; }
     }
 
+    // --- THIS IS THE CORRECTED updateOptions FUNCTION ---
     function updateOptions(selectElement, options, selectedValue = null) {
         if (!selectElement) return;
-        // Preserve the placeholder text from the form definition
-        const placeholder = selectElement.querySelector('option[value=""]').textContent || '---------';
+        
+        let placeholder = '---------';
+        if (selectElement.id === 'id_local_municipality') {
+            placeholder = 'Select Municipality';
+        } else if (selectElement.id === 'id_facility') {
+            placeholder = 'Select Facility';
+        }
+
         selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+        
         options.forEach(option => {
             const opt = document.createElement('option');
             opt.value = option;
@@ -74,7 +85,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             selectElement.appendChild(opt);
         });
-        // Manually dispatch a change event AFTER a short delay to ensure DOM is updated
+        
+        // Use a timeout to ensure the DOM is updated before firing the event
         setTimeout(() => {
             selectElement.dispatchEvent(new Event('change'));
         }, 10);
@@ -86,16 +98,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (municipalitySelect) { municipalitySelect.addEventListener('change', async () => { const facilities = await fetchOptions('municipality', municipalitySelect.value); updateOptions(facilitySelect, facilities, (municipalitySelect.value === initialMunicipality) ? initialFacility : null); }); }
 
     // ==========================================================
-    // INITIALIZATION LOGIC (The Main Fix)
+    // INITIALIZATION LOGIC
     // ==========================================================
     async function initializeForm() {
-        // Run the role-based toggle first
         toggleLocationFields();
-
-        // If a district is already selected...
         if (districtSelect && districtSelect.value) {
             const municipalities = await fetchOptions('district', districtSelect.value);
-            // ...populate the municipalities and pre-select the correct one.
             updateOptions(municipalitySelect, municipalities, initialMunicipality);
         }
     }
@@ -103,5 +111,4 @@ document.addEventListener('DOMContentLoaded', function() {
     // RUN THE INITIALIZATION LOGIC ON PAGE LOAD
     initializeForm();
 });
-
 {% endblock javascript %}
