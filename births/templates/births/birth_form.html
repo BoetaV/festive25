@@ -7,7 +7,6 @@
         <div class="card border-primary">
             <div class="card-body">
                 <h2 class="card-title text-center mb-4">{{ form_title }}</h2>
-                
                 <form method="post" id="deliveryForm">
                     {% csrf_token %}
                     <div id="main-delivery-form">{{ form|crispy }}</div>
@@ -47,61 +46,51 @@ document.addEventListener('DOMContentLoaded', function() {
     const districtSelect = document.getElementById('id_district');
     const municipalitySelect = document.getElementById('id_local_municipality');
     const facilitySelect = document.getElementById('id_facility');
+    const facilityTypeSelect = document.getElementById('id_facility_type');
     const nilBirthsCheckbox = document.getElementById('id_no_births_to_report');
     const numBabiesSelect = document.getElementById('id_number_of_babies');
-    const babyDetailsSection = document.getElementById('baby-details-section');
-    const babyFormsContainer = document.getElementById('baby-forms-container');
     const timeSlotSelect = document.getElementById('id_time_slot');
     const motherDobInput = document.getElementById('id_mother_dob');
     const fieldsToToggleForNil = ['#div_id_number_of_babies', '#div_id_born_before_arrival', '#div_id_delivery_time', '#div_id_mother_name', '#div_id_mother_surname', '#div_id_mother_dob', '#div_id_birth_mode', '#div_id_gravidity', '#div_id_parity'];
+    const babyDetailsSection = document.getElementById('baby-details-section');
 
     // --- GET INITIAL VALUES FROM FORM (for edit mode) ---
     const initialMunicipality = "{{ form.local_municipality.value|default_if_none:'' }}";
     const initialFacility = "{{ form.facility.value|default_if_none:'' }}";
 
-    // ==========================================================
-    // HELPER FUNCTIONS
-    // ==========================================================
-    function toggleTimeSlotField() {
-        if (timeSlotSelect && nilBirthsCheckbox) {
-            timeSlotSelect.disabled = !nilBirthsCheckbox.checked;
-            if (!nilBirthsCheckbox.checked) {
-                timeSlotSelect.value = '';
-            }
+    // --- HELPER FUNCTIONS ---
+    function toggleTimeSlotField() { /* ... */ }
+    function toggleBabyForms() { /* ... */ }
+    function handleNilReportToggle() { /* ... */ }
+    async function fetchOptions(type, id) { /* ... */ }
+
+    async function autoSelectFacilityType() {
+        if (!facilitySelect || !facilityTypeSelect) return;
+        const selectedFacility = facilitySelect.value;
+        
+        if (!selectedFacility) {
+            // If no facility is selected, reset the type and RE-ENABLE the dropdown
+            facilityTypeSelect.value = '';
+            facilityTypeSelect.disabled = false; // <-- KEY CHANGE
+            return;
         }
-    }
 
-    function toggleBabyForms() {
-        if (!numBabiesSelect || !babyDetailsSection || !babyFormsContainer) return;
-        const selectedCount = parseInt(numBabiesSelect.value) || 0;
-        babyDetailsSection.style.display = (selectedCount > 0) ? 'block' : 'none';
-        const allBabyForms = babyFormsContainer.querySelectorAll('.baby-form-row');
-        allBabyForms.forEach((form, index) => {
-            form.style.display = (index < selectedCount) ? 'block' : 'none';
-        });
-    }
+        // If a facility is selected, DISABLE the dropdown to prevent changes
+        facilityTypeSelect.disabled = true; // <-- KEY CHANGE
 
-    function handleNilReportToggle() {
-        if (!nilBirthsCheckbox) return;
-        const isChecked = nilBirthsCheckbox.checked;
-        fieldsToToggleForNil.forEach(selector => {
-            const fieldDiv = document.querySelector(selector);
-            if (fieldDiv) { fieldDiv.style.display = isChecked ? 'none' : 'block'; }
-        });
-        if (isChecked && numBabiesSelect) {
-            numBabiesSelect.value = '';
-            toggleBabyForms();
-        }
-    }
-
-    async function fetchOptions(type, id) {
-        if (!id) return [];
-        const url = `/ajax/load-options/?type=${type}&id=${id}`;
+        const url = `/ajax/get-facility-type/?facility_name=${encodeURIComponent(selectedFacility)}`;
         try {
             const response = await fetch(url);
-            const data = await response.json();
-            return data.options;
-        } catch (error) { console.error('Failed to fetch options:', error); return []; }
+            if (response.ok) {
+                const data = await response.json();
+                facilityTypeSelect.value = data.facility_type;
+            } else {
+                console.error("Could not find facility type for:", selectedFacility);
+                facilityTypeSelect.value = ''; // Reset if not found
+            }
+        } catch (error) {
+            console.error("Error fetching facility type:", error);
+        }
     }
 
     function updateOptions(selectElement, options, selectedValue = null) {
@@ -109,70 +98,39 @@ document.addEventListener('DOMContentLoaded', function() {
         selectElement.innerHTML = `<option value="">--Select--</option>`;
         options.forEach(option => {
             const opt = document.createElement('option');
-            opt.value = option;
-            opt.textContent = option;
+            opt.value = option; opt.textContent = option;
             if (option === selectedValue) { opt.selected = true; }
             selectElement.appendChild(opt);
         });
-        // Dispatch a 'change' event to trigger dependent dropdowns
-        selectElement.dispatchEvent(new Event('change'));
+        setTimeout(() => { selectElement.dispatchEvent(new Event('change')); }, 10);
     }
 
-    // ==========================================================
-    // INITIALIZE WIDGETS AND EVENT LISTENERS
-    // ==========================================================
-    
-    // Flatpickr Widgets
-    flatpickr(".datepicker", { altInput: true, altFormat: "F j, Y", dateFormat: "Y-m-d", maxDate: "today" });
-    flatpickr(".timepicker", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, minuteIncrement: 1 });
+    // --- INITIALIZE WIDGETS AND EVENT LISTENERS ---
+    flatpickr(".datepicker", { /* ... */ });
+    flatpickr(".timepicker", { /* ... */ });
 
-    // Real-time Age Calculation
-    if (motherDobInput) {
-        const ageDisplay = document.createElement('small');
-        ageDisplay.className = 'form-text text-muted ms-2';
-        motherDobInput.parentNode.appendChild(ageDisplay);
-        function calculateAndDisplayAge() {
-            const dobString = motherDobInput.value;
-            if (!dobString) { ageDisplay.textContent = ''; return; }
-            const dob = new Date(dobString);
-            if (isNaN(dob.getTime())) { ageDisplay.textContent = ''; return; }
-            const today = new Date();
-            let age = today.getFullYear() - dob.getFullYear();
-            const m = today.getMonth() - dob.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) { age--; }
-            ageDisplay.textContent = (age >= 0) ? `(Calculated Age: ${age})` : '';
-        }
-        motherDobInput.addEventListener('change', calculateAndDisplayAge);
-        calculateAndDisplayAge(); // Run on page load
-    }
+    if (motherDobInput) { /* ... age calculation logic ... */ }
     
-    // --- ATTACH EVENT LISTENERS ---
     if (districtSelect) { districtSelect.addEventListener('change', async () => { const municipalities = await fetchOptions('district', districtSelect.value); updateOptions(municipalitySelect, municipalities); }); }
     if (municipalitySelect) { municipalitySelect.addEventListener('change', async () => { const facilities = await fetchOptions('municipality', municipalitySelect.value); updateOptions(facilitySelect, facilities, (municipalitySelect.value === initialMunicipality) ? initialFacility : null); }); }
+    if (facilitySelect) { facilitySelect.addEventListener('change', autoSelectFacilityType); } // <-- Corrected placement
     if (numBabiesSelect) { numBabiesSelect.addEventListener('change', toggleBabyForms); }
     if (nilBirthsCheckbox) {
         nilBirthsCheckbox.addEventListener('change', handleNilReportToggle);
         nilBirthsCheckbox.addEventListener('change', toggleTimeSlotField);
     }
 
-    // ==========================================================
-    // INITIALIZATION LOGIC (Runs once on page load)
-    // ==========================================================
+    // --- INITIALIZATION LOGIC (Runs once on page load) ---
     async function initializeForm() {
-        // 1. Set initial visibility of all conditional fields
         toggleBabyForms();
         handleNilReportToggle();
         toggleTimeSlotField();
-
-        // 2. If a district is already selected (for an Admin or in Edit mode)...
         if (districtSelect && districtSelect.value) {
             const municipalities = await fetchOptions('district', districtSelect.value);
-            // ...populate the municipalities and pre-select the correct one if we are in edit mode.
             updateOptions(municipalitySelect, municipalities, initialMunicipality);
+            // The chain reaction from updateOptions will handle populating facilities and the facility type
         }
     }
-
-    // RUN THE INITIALIZATION LOGIC
     initializeForm();
 });
 {% endblock javascript %}

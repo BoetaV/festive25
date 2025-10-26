@@ -37,6 +37,9 @@ class DeliveryForm(forms.ModelForm):
         self.fields['time_slot'].widget.attrs['disabled'] = True
         self.fields['time_slot'].help_text = 'This field is only for NIL reports. It is set automatically for live births.'
         
+        self.fields['facility_type'].widget.attrs['disabled'] = True
+        self.fields['facility_type'].help_text = 'This is set automatically when you select a Facility.'
+        
         data = self.data
         instance = self.instance
 

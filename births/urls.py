@@ -45,5 +45,6 @@ urlpatterns = [
     path('reports/export-excel/', views.export_full_report_excel, name='export_full_report'),
     
     # --- AJAX URL for dynamic dropdowns (this remains the same) ---
+    path('ajax/get-facility-type/', views.get_facility_type, name='ajax_get_facility_type'),
     path('ajax/load-options/', views.load_options, name='ajax_load_options'),
 ]

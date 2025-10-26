@@ -24,7 +24,7 @@ from weasyprint import HTML, CSS
 # --- Local App Imports ---
 from .models import Delivery, Baby
 from .forms import DeliveryForm, BabyFormSet, DashboardReportFilterForm
-from .data import LOCATION_DATA, DISTRICT_CHOICES
+from .data import LOCATION_DATA, DISTRICT_CHOICES, FACILITY_TYPES
 
 # ==========================================================
 # HELPER FUNCTIONS & PERMISSION MIXINS
@@ -405,3 +405,16 @@ def load_options(request):
     if parent_type == 'district' and parent_id: options = LOCATION_DATA['municipalities'].get(parent_id, [])
     elif parent_type == 'municipality' and parent_id: options = LOCATION_DATA['facilities'].get(parent_id, [])
     return JsonResponse({'options': options})
+
+def get_facility_type(request):
+    facility_name = request.GET.get('facility_name')
+    if not facility_name:
+        return JsonResponse({'error': 'No facility name provided'}, status=400)
+
+    # Look up the facility type in our dictionary
+    facility_type = FACILITY_TYPES.get(facility_name)
+    
+    if facility_type is None:
+        return JsonResponse({'error': 'Facility type not found'}, status=404)
+        
+    return JsonResponse({'facility_type': facility_type})
