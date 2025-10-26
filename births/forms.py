@@ -18,7 +18,7 @@ class DeliveryForm(forms.ModelForm):
     district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=True)
     local_municipality = forms.ChoiceField(choices=[], required=False)
     facility = forms.ChoiceField(choices=[], required=False)
-    facility_type = forms.ChoiceField(choices=FACILITY_TYPE_CHOICES, required=True)
+    facility_type = forms.ChoiceField(choices=FACILITY_TYPE_CHOICES, required=False)
     report_date = forms.ChoiceField(choices=REPORT_DATE_CHOICES, required=True)
     time_slot = forms.ChoiceField(choices=TIME_SLOT_CHOICES, required=False)
     birth_mode = forms.ChoiceField(choices=BIRTH_MODE_CHOICES, required=False)
