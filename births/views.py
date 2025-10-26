@@ -118,7 +118,13 @@ class LandingPageView(TemplateView):
         time_slot_summary = deliveries_qs.filter(no_births_to_report=False).values('time_slot').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_slot=Count('babies')).order_by('time_slot')
         
         # Facility Type Summary
-        facility_type_summary = deliveries_qs.filter(no_births_to_report=False).values('facility_type').annotate(male_count=Count('babies', filter=Q(babies__gender='Male')), female_count=Count('babies', filter=Q(babies__gender='Female')), total_in_type=Count('babies')).order_by('facility_type')
+        facility_type_summary = deliveries_qs.filter(
+            no_births_to_report=False
+        ).values('facility_type').annotate(
+            male_count=Count('babies', filter=Q(babies__gender='Male')),
+            female_count=Count('babies', filter=Q(babies__gender='Female')),
+            total_in_type=Count('babies')
+        ).order_by('facility_type')
 
         # Teenage Pregnancy Summary
         date_10_years_ago, date_15_years_ago, date_20_years_ago = today.replace(year=today.year-10), today.replace(year=today.year-15), today.replace(year=today.year-20)
