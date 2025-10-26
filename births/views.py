@@ -401,10 +401,17 @@ class GenerateDashboardPDF(LoginRequiredMixin, View):
 # AJAX HELPER VIEW
 # ==========================================================
 def load_options(request):
-    parent_type = request.GET.get('type'); parent_id = request.GET.get('id'); options = []
-    if parent_type == 'district' and parent_id: options = LOCATION_DATA['municipalities'].get(parent_id, [])
-    elif parent_type == 'municipality' and parent_id: options = LOCATION_DATA['facilities'].get(parent_id, [])
-    return JsonResponse({'options': options})
+    parent_type = request.GET.get('type')
+    parent_id = request.GET.get('id')
+    
+    options_list = [] # Use a different variable name to avoid confusion
+    if parent_type == 'district' and parent_id:
+        options_list = LOCATION_DATA['municipalities'].get(parent_id, [])
+    elif parent_type == 'municipality' and parent_id:
+        options_list = LOCATION_DATA['facilities'].get(parent_id, [])
+        
+    # THE CRITICAL PART: The response MUST be a dictionary with the key "options".
+    return JsonResponse({'options': options_list})
 
 def get_facility_type(request):
     facility_name = request.GET.get('facility_name')
