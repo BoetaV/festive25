@@ -10,18 +10,21 @@ DEFAULT_PASSWORD = "Password1"
 class UserFormMixin(forms.Form):
     """A single mixin to handle all shared form logic."""
     def __init__(self, *args, **kwargs):
-        # Pop the user out of kwargs before calling super() so the parent class doesn't see it.
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         
+        # --- Make location fields optional by default ---
+        self.fields['district'].required = False
+        self.fields['local_municipality'].required = False
+        self.fields['facility'].required = False
+
+        # --- Dynamic Dropdown & Permission Logic ---
         data = self.data
         instance = getattr(self, 'instance', None)
-
-        # Logic for Dynamic Dropdowns
+        
         if data:
             try:
-                district = data.get('district')
-                municipality = data.get('local_municipality')
+                district = data.get('district'); municipality = data.get('local_municipality')
                 if district: self.fields['local_municipality'].choices = [(m, m) for m in LOCATION_DATA['municipalities'].get(district, [])]
                 if municipality: self.fields['facility'].choices = [(f, f) for f in LOCATION_DATA['facilities'].get(municipality, [])]
             except (ValueError, TypeError, KeyError): pass
@@ -30,7 +33,6 @@ class UserFormMixin(forms.Form):
             if profile.district: self.fields['local_municipality'].choices = [(m, m) for m in LOCATION_DATA['municipalities'].get(profile.district, [])]
             if profile.local_municipality: self.fields['facility'].choices = [(f, f) for f in LOCATION_DATA['facilities'].get(profile.local_municipality, [])]
         
-        # Logic for Role-Based Permissions
         if self.user and not self.user.is_superuser:
             if self.user.groups.filter(name='Admin').exists():
                 admin_district = self.user.profile.district
@@ -38,6 +40,20 @@ class UserFormMixin(forms.Form):
                 self.fields['district'].initial = admin_district
                 self.fields['district'].widget.attrs['readonly'] = True
                 self.fields['role'].queryset = Group.objects.filter(name='User')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        role = cleaned_data.get('role')
+
+        if role:
+            if role.name == 'Admin':
+                if not cleaned_data.get('district'): self.add_error('district', 'District is required for the Admin role.')
+            elif role.name == 'User':
+                if not cleaned_data.get('district'): self.add_error('district', 'District is required for the User role.')
+                if not cleaned_data.get('local_municipality'): self.add_error('local_municipality', 'Local Municipality is required for the User role.')
+                if not cleaned_data.get('facility'): self.add_error('facility', 'Facility is required for the User role.')
+        
+        return cleaned_data
 
 
 class UserCreateForm(UserFormMixin, forms.ModelForm):
@@ -50,8 +66,8 @@ class UserCreateForm(UserFormMixin, forms.ModelForm):
     mobile_number = forms.CharField(label="Mobile Number", min_length=10, max_length=10, required=False)
     role = forms.ModelChoiceField(queryset=Group.objects.all(), required=True)
     district = forms.ChoiceField(choices=DISTRICT_CHOICES)
-    local_municipality = forms.ChoiceField(choices=[], required=False)
-    facility = forms.ChoiceField(choices=[], required=False)
+    local_municipality = forms.ChoiceField(choices=[])
+    facility = forms.ChoiceField(choices=[])
 
     class Meta:
         model = User
@@ -79,12 +95,11 @@ class UserCreateForm(UserFormMixin, forms.ModelForm):
             user.save()
             user.groups.add(self.cleaned_data['role'])
             Profile.objects.create(
-                user=user,
-                title=self.cleaned_data['title'],
+                user=user, title=self.cleaned_data['title'],
                 persal_number=self.cleaned_data['persal_number'],
                 designation=self.cleaned_data.get('designation'),
                 mobile_number=self.cleaned_data.get('mobile_number'),
-                district=self.cleaned_data['district'],
+                district=self.cleaned_data.get('district'),
                 local_municipality=self.cleaned_data.get('local_municipality'),
                 facility=self.cleaned_data.get('facility')
             )
@@ -102,8 +117,8 @@ class UserUpdateForm(UserFormMixin, forms.ModelForm):
     mobile_number = forms.CharField(label="Mobile Number", min_length=10, max_length=10, required=False)
     role = forms.ModelChoiceField(queryset=Group.objects.all(), required=True)
     district = forms.ChoiceField(choices=DISTRICT_CHOICES)
-    local_municipality = forms.ChoiceField(choices=[], required=False)
-    facility = forms.ChoiceField(choices=[], required=False)
+    local_municipality = forms.ChoiceField(choices=[])
+    facility = forms.ChoiceField(choices=[])
 
     class Meta:
         model = User
@@ -125,48 +140,28 @@ class UserUpdateForm(UserFormMixin, forms.ModelForm):
 
     def clean_persal_number(self):
         persal = self.cleaned_data.get('persal_number')
-        if not persal or not persal.isdigit() or len(persal) != 8:
-            raise forms.ValidationError("Persal Number must be an 8-digit number.")
-        if Profile.objects.filter(persal_number=persal).exclude(user=self.instance).exists():
-            raise forms.ValidationError("Another user with this Persal Number already exists.")
+        if not persal or not persal.isdigit() or len(persal) != 8: raise forms.ValidationError("Persal Number must be an 8-digit number.")
+        if Profile.objects.filter(persal_number=persal).exclude(user=self.instance).exists(): raise forms.ValidationError("Another user with this Persal Number already exists.")
         return persal
     
     def clean_mobile_number(self):
         mobile = self.cleaned_data.get('mobile_number')
-        if mobile and (not mobile.isdigit() or len(mobile) != 10):
-            raise forms.ValidationError("Mobile Number must be a 10-digit number.")
+        if mobile and (not mobile.isdigit() or len(mobile) != 10): raise forms.ValidationError("Mobile Number must be a 10-digit number.")
         return mobile
 
     def save(self, commit=True):
-        # Save the User model fields (first_name, last_name, email)
         user = super().save(commit=True)
-        
-        # Update password only if a new one was provided
         password = self.cleaned_data.get("password")
-        if password:
-            user.set_password(password)
-        
-        # Ensure username always matches the persal number
-        user.username = self.cleaned_data['persal_number']
-        user.save()
-
-        # Update the user's role/group
-        user.groups.clear()
-        user.groups.add(self.cleaned_data['role'])
-            
-        # --- THIS IS THE CORRECTED LOGIC ---
-        # Use update_or_create to handle users who might be missing a profile.
-        profile, created = Profile.objects.update_or_create(
+        if password: user.set_password(password)
+        user.username = self.cleaned_data['persal_number']; user.save()
+        user.groups.clear(); user.groups.add(self.cleaned_data['role'])
+        Profile.objects.update_or_create(
             user=user,
             defaults={
-                'title': self.cleaned_data['title'],
-                'persal_number': self.cleaned_data['persal_number'],
-                'designation': self.cleaned_data.get('designation'),
-                'mobile_number': self.cleaned_data.get('mobile_number'),
-                'district': self.cleaned_data['district'],
-                'local_municipality': self.cleaned_data.get('local_municipality'),
+                'title': self.cleaned_data['title'], 'persal_number': self.cleaned_data['persal_number'],
+                'designation': self.cleaned_data.get('designation'), 'mobile_number': self.cleaned_data.get('mobile_number'),
+                'district': self.cleaned_data.get('district'), 'local_municipality': self.cleaned_data.get('local_municipality'),
                 'facility': self.cleaned_data.get('facility'),
             }
         )
-        
         return user

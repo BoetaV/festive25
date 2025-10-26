@@ -22,30 +22,39 @@
 {% endblock content %}
 
 {% block javascript %}
+<script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- GRAB HTML ELEMENTS ---
+    // ... (grabbing elements is unchanged) ...
     const roleSelect = document.getElementById('id_role');
-    const districtSelect = document.getElementById('id_district');
-    const municipalitySelect = document.getElementById('id_local_municipality');
-    const facilitySelect = document.getElementById('id_facility');
+    const districtGroup = document.querySelector('#div_id_district'); // <-- Get the district field
+    const municipalityGroup = document.querySelector('#div_id_local_municipality');
+    const facilityGroup = document.querySelector('#div_id_facility');
 
-    // --- GET INITIAL VALUES (for Edit mode) ---
-    const initialMunicipality = "{{ initial_municipality|default_if_none:'' }}";
-    const initialFacility = "{{ initial_facility|default_if_none:'' }}";
-
-    // --- LOGIC TO SHOW/HIDE FIELDS BASED ON SELECTED ROLE ---
+    // --- LOGIC TO SHOW/HIDE FIELDS BASED ON SELECTED ROLE (UPDATED) ---
     function toggleLocationFields() {
         if (!roleSelect) return;
         const selectedRoleText = roleSelect.options[roleSelect.selectedIndex].text;
-        const municipalityGroup = document.querySelector('#div_id_local_municipality');
-        const facilityGroup = document.querySelector('#div_id_facility');
 
-        if (municipalityGroup && facilityGroup) {
-            const showFields = (selectedRoleText === 'User');
-            municipalityGroup.style.display = showFields ? 'block' : 'none';
-            facilityGroup.style.display = showFields ? 'block' : 'none';
+        if (districtGroup && municipalityGroup && facilityGroup) {
+            if (selectedRoleText === 'User') {
+                // Show all location fields for a normal User
+                districtGroup.style.display = 'block';
+                municipipalityGroup.style.display = 'block';
+                facilityGroup.style.display = 'block';
+            } else if (selectedRoleText === 'Admin') {
+                // Only show the District field for an Admin
+                districtGroup.style.display = 'block';
+                municipalityGroup.style.display = 'none';
+                facilityGroup.style.display = 'none';
+            } else { // This will apply to "ProvinceUser" and Superuser-created roles
+                // Hide all location fields
+                districtGroup.style.display = 'none';
+                municipalityGroup.style.display = 'none';
+                facilityGroup.style.display = 'none';
+            }
         }
     }
+
 
     // --- LOGIC FOR DYNAMIC DROPDOWNS ---
     async function fetchOptions(type, id) {
@@ -111,4 +120,5 @@ document.addEventListener('DOMContentLoaded', function() {
     // RUN THE INITIALIZATION LOGIC ON PAGE LOAD
     initializeForm();
 });
+</script>
 {% endblock javascript %}
