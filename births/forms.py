@@ -20,23 +20,30 @@ BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal V
 
 # --- THE MAIN FORM FOR THE DELIVERY EVENT ---
 class DeliveryForm(forms.ModelForm):
-    number_of_babies = forms.ChoiceField(choices=[('', '--Select Number of Babies--')] + [(i, str(i)) for i in range(1, 6)], label="Number of Babies in this Delivery", required=False)
-    district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=False)
-    local_municipality = forms.ChoiceField(choices=[], required=False)
-    facility = forms.ChoiceField(choices=[], required=False)
-    facility_type = forms.ChoiceField(choices=FACILITY_TYPE_CHOICES, required=False)
-    report_date = forms.ChoiceField(choices=REPORT_DATE_CHOICES, required=True)
-    time_slot = forms.ChoiceField(choices=TIME_SLOT_CHOICES, required=False)
-    birth_mode = forms.ChoiceField(choices=BIRTH_MODE_CHOICES, required=False)
+    number_of_babies = forms.ChoiceField(...)
+    district = forms.ChoiceField(...)
+    local_municipality = forms.ChoiceField(...)
+    facility = forms.ChoiceField(...)
+    facility_type = forms.ChoiceField(...)
+    report_date = forms.ChoiceField(...)
+    time_slot = forms.ChoiceField(...)
+    birth_mode = forms.ChoiceField(...)
 
     class Meta:
         model = Delivery
-        fields = ['district', 'local_municipality', 'facility', 'facility_type', 'report_date', 'time_slot', 'no_births_to_report', 'born_before_arrival', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity']
+        # --- THIS IS THE LIST TO CHECK ---
+        fields = [
+            'district', 'local_municipality', 'facility', 'facility_type',
+            'report_date', 'time_slot', 
+            'no_births_to_report', # <-- MUST MATCH THE MODEL FIELD NAME
+            'born_before_arrival', 'delivery_time', 'mother_name',
+            'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity'
+        ]
         widgets = {
             'mother_dob': forms.DateInput(attrs={'class': 'datepicker', 'placeholder': 'Select Mother D.O.B...'}),
             'delivery_time': forms.TimeInput(attrs={'class': 'timepicker', 'placeholder': 'Select Time of Delivery...'}),
         }
-
+        
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         
