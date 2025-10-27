@@ -52,10 +52,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const numBabiesSelect = document.getElementById('id_number_of_babies');
     const timeSlotSelect = document.getElementById('id_time_slot');
     const motherDobInput = document.getElementById('id_mother_dob');
+    const submitButton = document.getElementById('submit-delivery-btn');
     const fieldsToToggleForNil = ['#div_id_number_of_babies', '#div_id_born_before_arrival', '#div_id_delivery_time', '#div_id_mother_name', '#div_id_mother_surname', '#div_id_mother_dob', '#div_id_birth_mode', '#div_id_gravidity', '#div_id_parity'];
     const babyDetailsSection = document.getElementById('baby-details-section');
-    const babyFormsContainer = document.getElementById('baby-forms-container');
-    const submitButton = document.getElementById('submit-delivery-btn');
 
     // --- GET INITIAL VALUES FROM FORM (for edit mode) ---
     const initialMunicipality = "{{ form.local_municipality.value|default_if_none:'' }}";
@@ -67,17 +66,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function toggleTimeSlotField() {
         if (timeSlotSelect && nilBirthsCheckbox) {
             timeSlotSelect.disabled = !nilBirthsCheckbox.checked;
-            if (!nilBirthsCheckbox.checked) {
-                timeSlotSelect.value = '';
-            }
+            if (!nilBirthsCheckbox.checked) { timeSlotSelect.value = ''; }
         }
     }
 
     function toggleBabyForms() {
-        if (!numBabiesSelect || !babyDetailsSection || !babyFormsContainer) return;
+        if (!numBabiesSelect || !babyDetailsSection) return;
         const selectedCount = parseInt(numBabiesSelect.value) || 0;
         babyDetailsSection.style.display = (selectedCount > 0) ? 'block' : 'none';
-        const allBabyForms = babyFormsContainer.querySelectorAll('.baby-form-row');
+        const allBabyForms = document.querySelectorAll('.baby-form-row');
         allBabyForms.forEach((form, index) => {
             form.style.display = (index < selectedCount) ? 'block' : 'none';
         });
@@ -107,18 +104,14 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) { console.error('Failed to fetch options:', error); return []; }
     }
 
-    // --- THIS IS THE CORRECTED autoSelectFacilityType FUNCTION ---
     async function autoSelectFacilityType() {
         if (!facilitySelect || !facilityTypeSelect) return;
         const selectedFacility = facilitySelect.value;
-        
         if (!selectedFacility) {
-            facilityTypeSelect.value = '';
-            facilityTypeSelect.readOnly = false; // Make editable again
+            facilityTypeSelect.value = ''; facilityTypeSelect.readOnly = false;
             return;
         }
-
-        facilityTypeSelect.readOnly = true; // Make readonly
+        facilityTypeSelect.readOnly = true;
         const url = `/ajax/get-facility-type/?facility_name=${encodeURIComponent(selectedFacility)}`;
         try {
             const response = await fetch(url);
@@ -127,13 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 facilityTypeSelect.value = data.facility_type;
             } else {
                 console.error("Could not find facility type for:", selectedFacility);
-                facilityTypeSelect.value = '';
-                facilityTypeSelect.readOnly = false; // Make editable if lookup fails
+                facilityTypeSelect.value = ''; facilityTypeSelect.readOnly = false;
             }
-        } catch (error) {
-            console.error("Error fetching facility type:", error);
-            facilityTypeSelect.readOnly = false; // Also make editable on error
-        }
+        } catch (error) { console.error("Error fetching facility type:", error); facilityTypeSelect.readOnly = false; }
     }
 
     function updateOptions(selectElement, options, selectedValue = null) {
@@ -141,53 +130,34 @@ document.addEventListener('DOMContentLoaded', function() {
         selectElement.innerHTML = `<option value="">--Select--</option>`;
         options.forEach(option => {
             const opt = document.createElement('option');
-            opt.value = option;
-            opt.textContent = option;
+            opt.value = option; opt.textContent = option;
             if (option === selectedValue) { opt.selected = true; }
             selectElement.appendChild(opt);
         });
         setTimeout(() => { selectElement.dispatchEvent(new Event('change')); }, 10);
     }
 
-    // ==========================================================
-    // NEW: SOFT VALIDATION FOR BABY WEIGHT
-    // ==========================================================
     function validateBabyWeights(event) {
-        const MIN_WEIGHT = 2500;
-        const MAX_WEIGHT = 4000;
+        const MIN_WEIGHT = 2500; const MAX_WEIGHT = 4000;
         let unusualWeightsFound = [];
-
-        // Find all baby weight inputs that are currently visible
         const babyWeightInputs = document.querySelectorAll('.baby-form-row[style*="display: block"] input[name$="-weight"]');
-
         babyWeightInputs.forEach(input => {
             const weight = parseInt(input.value, 10);
-            // Check if the weight is a number and is outside the normal range
             if (!isNaN(weight) && (weight < MIN_WEIGHT || weight > MAX_WEIGHT)) {
                 unusualWeightsFound.push(weight);
             }
         });
-
-        // If we found any unusual weights
         if (unusualWeightsFound.length > 0) {
-            // Create a user-friendly message
-            const message = `The following baby weight(s) are outside the normal range (2500g - 4000g):\n\n` +
-                          `${unusualWeightsFound.join('g, ')}g\n\n` +
-                          `Please verify the weight is correct. Click 'OK' to submit anyway, or 'Cancel' to fix.`;
-
-            // Show a confirmation dialog. 'confirm()' returns true for OK, false for Cancel.
+            const message = `The following baby weight(s) are outside the normal range (2500g - 4000g):\n\n${unusualWeightsFound.join('g, ')}g\n\nPlease verify the weight is correct. Click 'OK' to submit anyway, or 'Cancel' to fix.`;
             if (!confirm(message)) {
-                // If the user clicks "Cancel", stop the form from submitting
                 event.preventDefault(); 
             }
         }
     }
 
-
     // ==========================================================
-    // INITIALIZE WIDGETS AND EVENT LISTENERS
+    // INITIALIZE WIDGETS AND ATTACH EVENT LISTENERS
     // ==========================================================
-    
     flatpickr(".datepicker", { altInput: true, altFormat: "F j, Y", dateFormat: "Y-m-d", maxDate: "today" });
     flatpickr(".timepicker", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, minuteIncrement: 1 });
 
@@ -210,15 +180,15 @@ document.addEventListener('DOMContentLoaded', function() {
         calculateAndDisplayAge();
     }
     
+    // --- ATTACH EVENT LISTENERS ---
     if (districtSelect) { districtSelect.addEventListener('change', async () => { const municipalities = await fetchOptions('district', districtSelect.value); updateOptions(municipalitySelect, municipalities); }); }
     if (municipalitySelect) { municipalitySelect.addEventListener('change', async () => { const facilities = await fetchOptions('municipality', municipalitySelect.value); updateOptions(facilitySelect, facilities, (municipalitySelect.value === initialMunicipality) ? initialFacility : null); }); }
     if (facilitySelect) { facilitySelect.addEventListener('change', autoSelectFacilityType); }
     if (numBabiesSelect) { numBabiesSelect.addEventListener('change', toggleBabyForms); }
+    if (submitButton) { submitButton.addEventListener('click', validateBabyWeights); }
     if (nilBirthsCheckbox) {
         nilBirthsCheckbox.addEventListener('change', handleNilReportToggle);
         nilBirthsCheckbox.addEventListener('change', toggleTimeSlotField);
-    if (submitButton) {submitButton.addEventListener('click', validateBabyWeights);
-    
     }
 
     // --- INITIALIZATION LOGIC ---
