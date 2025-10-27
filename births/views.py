@@ -46,26 +46,18 @@ class LandingPageView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        user = self.request.user
         
-        # Start with the base queryset
+        # This view is fully public and does NOT filter by user role.
+        # It ONLY filters based on the GET parameters from the dropdowns.
         deliveries_qs = Delivery.objects.all()
 
-        # Apply user role-based filtering ONLY if the user is authenticated
-        if user.is_authenticated:
-            if not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
-                if user.groups.filter(name='Admin').exists():
-                    deliveries_qs = deliveries_qs.filter(district=user.profile.district)
-                elif user.groups.filter(name='User').exists():
-                    deliveries_qs = deliveries_qs.filter(facility=user.profile.facility)
-
-        # Get and clean URL filter values
+        # Get and clean URL filter values from the user's dropdown selections
         selected_date = self.request.GET.get('report_date') or None
         selected_district = self.request.GET.get('district') or None
         selected_municipality = self.request.GET.get('local_municipality') or None
         selected_facility = self.request.GET.get('facility') or None
 
-        # Apply URL filters on top of the (potentially) permission-filtered queryset
+        # Apply the user-selected filters
         if selected_date: deliveries_qs = deliveries_qs.filter(report_date=selected_date)
         if selected_district: deliveries_qs = deliveries_qs.filter(district=selected_district)
         if selected_municipality: deliveries_qs = deliveries_qs.filter(local_municipality=selected_municipality)
