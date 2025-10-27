@@ -7,43 +7,35 @@ from .models import Delivery, Baby
 from .data import LOCATION_DATA, DISTRICT_CHOICES
 
 # --- STATIC CHOICES LISTS ---
-FACILITY_TYPE_CHOICES = [
-    ("", "--Select Facility Type--"), 
-    ("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), 
-    ("CHC", "Community Health Centre"), ("District Hospital", "District Hospital"), 
-    ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), 
-    ("Tertiary Hospital", "Tertiary Hospital"),
-]
+FACILITY_TYPE_CHOICES = [("", "--Select Facility Type--"), ("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), ("CHC", "Community Health Centre"), ("District Hospital", "District Hospital"), ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), ("Tertiary Hospital", "Tertiary Hospital")]
 REPORT_DATE_CHOICES = [("", "--Select Report Date--"), ("25 December 2025", "25 December 2025"), ("01 January 2026", "01 January 2026")]
 TIME_SLOT_CHOICES = [("", "--Select Time Slot--"), ("00:01 - 06:00", "00:01 - 06:00"), ("06:01 - 12:00", "06:01 - 12:00"), ("12:01 - 18:00", "12:01 - 18:00"), ("18:01 - 24:00", "18:01 - 24:00")]
 BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal Vertex"), ("Caesarean section Elective", "Caesarean section Elective"), ("Caesarean section Emergency", "Caesarean section Emergency"), ("Vacuum", "Vacuum"), ("Forceps", "Forceps"), ("Vaginal Breech", "Vaginal Breech")]
 
 # --- THE MAIN FORM FOR THE DELIVERY EVENT ---
 class DeliveryForm(forms.ModelForm):
-    number_of_babies = forms.ChoiceField(...)
-    district = forms.ChoiceField(...)
-    local_municipality = forms.ChoiceField(...)
-    facility = forms.ChoiceField(...)
-    facility_type = forms.ChoiceField(...)
-    report_date = forms.ChoiceField(...)
-    time_slot = forms.ChoiceField(...)
-    birth_mode = forms.ChoiceField(...)
+    # --- THIS IS THE CORRECTION ---
+    number_of_babies = forms.ChoiceField(
+        choices=[('', '--Select Number of Babies--')] + [(i, str(i)) for i in range(1, 6)],
+        label="Number of Babies in this Delivery",
+        required=False
+    )
+    district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=False)
+    local_municipality = forms.ChoiceField(choices=[], required=False)
+    facility = forms.ChoiceField(choices=[], required=False)
+    facility_type = forms.ChoiceField(choices=FACILITY_TYPE_CHOICES, required=False)
+    report_date = forms.ChoiceField(choices=REPORT_DATE_CHOICES, required=True)
+    time_slot = forms.ChoiceField(choices=TIME_SLOT_CHOICES, required=False)
+    birth_mode = forms.ChoiceField(choices=BIRTH_MODE_CHOICES, required=False)
 
     class Meta:
         model = Delivery
-        # --- THIS IS THE LIST TO CHECK ---
-        fields = [
-            'district', 'local_municipality', 'facility', 'facility_type',
-            'report_date', 'time_slot', 
-            'no_births_to_report', # <-- MUST MATCH THE MODEL FIELD NAME
-            'born_before_arrival', 'delivery_time', 'mother_name',
-            'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity'
-        ]
+        fields = ['district', 'local_municipality', 'facility', 'facility_type', 'report_date', 'time_slot', 'no_births_to_report', 'born_before_arrival', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity']
         widgets = {
             'mother_dob': forms.DateInput(attrs={'class': 'datepicker', 'placeholder': 'Select Mother D.O.B...'}),
             'delivery_time': forms.TimeInput(attrs={'class': 'timepicker', 'placeholder': 'Select Time of Delivery...'}),
         }
-        
+
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         
@@ -77,8 +69,7 @@ class DeliveryForm(forms.ModelForm):
         cleaned_data = super().clean()
         is_nil_report = cleaned_data.get('no_births_to_report')
         
-        # --- Manually add disabled field values back to cleaned_data ---
-        # This is the critical fix for saving auto-populated fields.
+        # Manually add disabled field values back to cleaned_data
         time_slot = self.data.get('time_slot')
         facility_type = self.data.get('facility_type')
         if time_slot: cleaned_data['time_slot'] = time_slot
@@ -90,7 +81,6 @@ class DeliveryForm(forms.ModelForm):
             return cleaned_data
         else:
             delivery_time = cleaned_data.get('delivery_time')
-            # Auto-populate time_slot for live births
             if delivery_time:
                 slot_map = {(time(0, 1), time(6, 0)): "00:01 - 06:00", (time(6, 1), time(12, 0)): "06:01 - 12:00", (time(12, 1), time(18, 0)): "12:01 - 18:00", (time(18, 1), time(23, 59)): "18:01 - 24:00"}
                 correct_slot = next((slot for (start, end), slot in slot_map.items() if start <= delivery_time <= end), None)
@@ -98,15 +88,14 @@ class DeliveryForm(forms.ModelForm):
                 if correct_slot: cleaned_data['time_slot'] = correct_slot
                 else: self.add_error('delivery_time', 'The entered Time of Delivery is invalid.')
             
-            # Check required fields for a live birth
             required_fields = ['district', 'local_municipality', 'facility', 'facility_type', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'number_of_babies']
             for field in required_fields:
                 if not cleaned_data.get(field) and not self.fields[field].widget.attrs.get('readonly'):
                     self.add_error(field, 'This field is required when reporting a birth.')
         return cleaned_data
+        
     def clean_mother_dob(self):
         dob = self.cleaned_data.get('mother_dob')
-        # Only require D.O.B if this is NOT a NIL report.
         if not self.cleaned_data.get('no_births_to_report') and not dob:
              raise forms.ValidationError("This field is required when reporting a birth.")
         if not dob: return dob
@@ -114,32 +103,6 @@ class DeliveryForm(forms.ModelForm):
         MIN_AGE, MAX_AGE = 10, 65
         if not (MIN_AGE <= age <= MAX_AGE): raise forms.ValidationError(f"Mother's age must be between {MIN_AGE} and {MAX_AGE}. Calculated age is {age}.")
         return dob
-
-    def clean(self):
-        cleaned_data = super().clean()
-        is_nil_report = cleaned_data.get('no_births_to_report')
-        delivery_time = cleaned_data.get('delivery_time')
-        time_slot = cleaned_data.get('time_slot')
-
-        if is_nil_report:
-            if not time_slot: self.add_error('time_slot', 'You must select a time slot for a NIL report.')
-            for field in ['delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity', 'number_of_babies']:
-                cleaned_data[field] = None
-            return cleaned_data
-        else:
-            required_fields = ['delivery_time', 'mother_name', 'mother_surname', 'birth_mode', 'number_of_babies', 'local_municipality', 'facility']
-            for field in required_fields:
-                if not cleaned_data.get(field): self.add_error(field, f'This field is required when reporting a birth.')
-            
-            if self.errors: return # Stop further validation if required fields are missing
-            
-            slot_map = {(time(0, 1), time(6, 0)): "00:01 - 06:00", (time(6, 1), time(12, 0)): "06:01 - 12:00", (time(12, 1), time(18, 0)): "12:01 - 18:00", (time(18, 1), time(23, 59)): "18:01 - 24:00"}
-            correct_slot = next((slot for (start, end), slot in slot_map.items() if start <= delivery_time <= end), None)
-            if delivery_time == time(0, 0): correct_slot = "18:01 - 24:00"
-            
-            if correct_slot: cleaned_data['time_slot'] = correct_slot
-            else: self.add_error('delivery_time', 'The entered Time of Delivery is invalid.')
-        return cleaned_data
 
 # --- CUSTOM FORMSET & INLINEFORMSET FACTORY ---
 class BaseBabyFormSet(BaseInlineFormSet):
