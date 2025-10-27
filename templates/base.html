@@ -53,6 +53,13 @@
                     {% endif %}
                 </ul>
 
+                <!-- ============================================= -->
+                <!-- DIGITAL CLOCK PLACEHOLDER (NEW) -->
+                <!-- ============================================= -->
+                <span class="navbar-text mx-auto d-none d-lg-block" id="navbar-clock">
+                    <!-- JavaScript will populate this -->
+                </span>
+
                 <ul class="navbar-nav ms-auto align-items-center">
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
@@ -99,11 +106,42 @@
         {% block javascript %}{% endblock javascript %}
     </script>
     
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(function(alert) { setTimeout(function() { new bootstrap.Alert(alert).close(); }, 3000); });
+ <script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // --- Auto-dismissing alerts ---
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(function(alert) {
+        setTimeout(function() {
+            // Use Bootstrap's Alert instance to close it smoothly
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }, 3000); // 3 seconds
     });
-    </script>
+
+    // --- Digital Clock Logic ---
+    const clockElement = document.getElementById('navbar-clock');
+
+    function updateClock() {
+        // This check ensures the code doesn't crash if the clock element isn't on the page
+        if (clockElement) {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+    }
+
+    // Only set up the clock if the element was found
+    if (clockElement) {
+        // Update the clock immediately on page load
+        updateClock();
+        // Then, set it to update every second
+        setInterval(updateClock, 1000);
+    }
+    
+}); 
+</script>
 </body>
 </html>
