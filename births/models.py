@@ -8,7 +8,7 @@ class Delivery(models.Model):
     district = models.CharField(max_length=100)
     local_municipality = models.CharField(max_length=100, blank=True, null=True) # Allow blank
     facility = models.CharField(max_length=100, blank=True, null=True) # Allow blank
-    facility_type = models.CharField(max_length=100, blank=True, null=False) # Allow blank
+    facility_type = models.CharField(max_length=100, blank=True, null=True) # Allow blank
 
     # Reporting Info
     report_date = models.CharField(max_length=50)

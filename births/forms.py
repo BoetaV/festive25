@@ -7,7 +7,7 @@ from .models import Delivery, Baby
 from .data import LOCATION_DATA, DISTRICT_CHOICES
 
 # --- STATIC CHOICES LISTS ---
-FACILITY_TYPE_CHOICES = [("", "--Select Facility Type--"), ("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), ("CHC", "Community Health Centre"), ("District Hospital", "District Hospital"), ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), ("Tertiary Hospital", "Tertiary Hospital")]
+FACILITY_TYPE_CHOICES = [("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), ("CHC", "CHC"), ("District Hospital", "District Hospital"), ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), ("Tertiary Hospital", "Tertiary Hospital")]
 REPORT_DATE_CHOICES = [("", "--Select Report Date--"), ("25 December 2025", "25 December 2025"), ("01 January 2026", "01 January 2026")]
 TIME_SLOT_CHOICES = [("", "--Select Time Slot--"), ("00:01 - 06:00", "00:01 - 06:00"), ("06:01 - 12:00", "06:01 - 12:00"), ("12:01 - 18:00", "12:01 - 18:00"), ("18:01 - 24:00", "18:01 - 24:00")]
 BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal Vertex"), ("Caesarean section Elective", "Caesarean section Elective"), ("Caesarean section Emergency", "Caesarean section Emergency"), ("Vacuum", "Vacuum"), ("Forceps", "Forceps"), ("Vaginal Breech", "Vaginal Breech")]
