@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const initialFacility = "{{ form.facility.value|default_if_none:'' }}";
 
     // ==========================================================
-    // HELPER FUNCTIONS (FULLY IMPLEMENTED)
+    // HELPER FUNCTIONS
     // ==========================================================
     function toggleTimeSlotField() {
         if (timeSlotSelect && nilBirthsCheckbox) {
@@ -106,15 +106,18 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) { console.error('Failed to fetch options:', error); return []; }
     }
 
+    // --- THIS IS THE CORRECTED autoSelectFacilityType FUNCTION ---
     async function autoSelectFacilityType() {
         if (!facilitySelect || !facilityTypeSelect) return;
         const selectedFacility = facilitySelect.value;
+        
         if (!selectedFacility) {
             facilityTypeSelect.value = '';
-            facilityTypeSelect.disabled = false;
+            facilityTypeSelect.readOnly = false; // Make editable again
             return;
         }
-        facilityTypeSelect.disabled = true;
+
+        facilityTypeSelect.readOnly = true; // Make readonly
         const url = `/ajax/get-facility-type/?facility_name=${encodeURIComponent(selectedFacility)}`;
         try {
             const response = await fetch(url);
@@ -124,8 +127,12 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 console.error("Could not find facility type for:", selectedFacility);
                 facilityTypeSelect.value = '';
+                facilityTypeSelect.readOnly = false; // Make editable if lookup fails
             }
-        } catch (error) { console.error("Error fetching facility type:", error); }
+        } catch (error) {
+            console.error("Error fetching facility type:", error);
+            facilityTypeSelect.readOnly = false; // Also make editable on error
+        }
     }
 
     function updateOptions(selectElement, options, selectedValue = null) {
@@ -176,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
         nilBirthsCheckbox.addEventListener('change', toggleTimeSlotField);
     }
 
-    // --- INITIALIZATION LOGIC (Runs once on page load) ---
+    // --- INITIALIZATION LOGIC ---
     async function initializeForm() {
         toggleBabyForms();
         handleNilReportToggle();

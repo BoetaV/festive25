@@ -7,19 +7,20 @@ from .models import Delivery, Baby
 from .data import LOCATION_DATA, DISTRICT_CHOICES
 
 # --- STATIC CHOICES LISTS ---
-FACILITY_TYPE_CHOICES = [("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), ("CHC", "CHC"), ("District Hospital", "District Hospital"), ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), ("Tertiary Hospital", "Tertiary Hospital")]
+FACILITY_TYPE_CHOICES = [
+    ("", "--Select Facility Type--"), 
+    ("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), 
+    ("CHC", "Community Health Centre"), ("District Hospital", "District Hospital"), 
+    ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), 
+    ("Tertiary Hospital", "Tertiary Hospital"),
+]
 REPORT_DATE_CHOICES = [("", "--Select Report Date--"), ("25 December 2025", "25 December 2025"), ("01 January 2026", "01 January 2026")]
 TIME_SLOT_CHOICES = [("", "--Select Time Slot--"), ("00:01 - 06:00", "00:01 - 06:00"), ("06:01 - 12:00", "06:01 - 12:00"), ("12:01 - 18:00", "12:01 - 18:00"), ("18:01 - 24:00", "18:01 - 24:00")]
 BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal Vertex"), ("Caesarean section Elective", "Caesarean section Elective"), ("Caesarean section Emergency", "Caesarean section Emergency"), ("Vacuum", "Vacuum"), ("Forceps", "Forceps"), ("Vaginal Breech", "Vaginal Breech")]
 
 # --- THE MAIN FORM FOR THE DELIVERY EVENT ---
 class DeliveryForm(forms.ModelForm):
-    # --- THIS IS THE CORRECTION ---
-    number_of_babies = forms.ChoiceField(
-        choices=[('', '--Select Number of Babies--')] + [(i, str(i)) for i in range(1, 6)],
-        label="Number of Babies in this Delivery",
-        required=False
-    )
+    number_of_babies = forms.ChoiceField(choices=[('', '--Select Number of Babies--')] + [(i, str(i)) for i in range(1, 6)], label="Number of Babies in this Delivery", required=False)
     district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=False)
     local_municipality = forms.ChoiceField(choices=[], required=False)
     facility = forms.ChoiceField(choices=[], required=False)
@@ -39,9 +40,12 @@ class DeliveryForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         
+        # Time slot is disabled as it's purely backend calculated
         self.fields['time_slot'].widget.attrs['disabled'] = True
         self.fields['time_slot'].help_text = 'This is only for NIL reports. Set automatically for live births.'
-        self.fields['facility_type'].widget.attrs['disabled'] = True
+        
+        # Facility type is readonly; its value IS submitted with the form
+        self.fields['facility_type'].widget.attrs['readonly'] = True
         self.fields['facility_type'].help_text = 'This is set automatically when you select a Facility.'
         
         data, instance = self.data, self.instance
@@ -69,12 +73,12 @@ class DeliveryForm(forms.ModelForm):
         cleaned_data = super().clean()
         is_nil_report = cleaned_data.get('no_births_to_report')
         
-        # Manually add disabled field values back to cleaned_data
+        # Manually get value for 'time_slot' as it's a disabled field
         time_slot = self.data.get('time_slot')
-        facility_type = self.data.get('facility_type')
         if time_slot: cleaned_data['time_slot'] = time_slot
-        if facility_type: cleaned_data['facility_type'] = facility_type
 
+        # 'facility_type' is readonly, so its value is already in cleaned_data. No manual step needed.
+        
         if is_nil_report:
             if not cleaned_data.get('time_slot'): self.add_error('time_slot', 'You must select a time slot for a NIL report.')
             for field in ['delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity', 'number_of_babies']: cleaned_data[field] = None
@@ -88,7 +92,8 @@ class DeliveryForm(forms.ModelForm):
                 if correct_slot: cleaned_data['time_slot'] = correct_slot
                 else: self.add_error('delivery_time', 'The entered Time of Delivery is invalid.')
             
-            required_fields = ['district', 'local_municipality', 'facility', 'facility_type', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'number_of_babies']
+            # Since facility_type is not compulsory, it's removed from this check.
+            required_fields = ['district', 'local_municipality', 'facility', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'number_of_babies']
             for field in required_fields:
                 if not cleaned_data.get(field) and not self.fields[field].widget.attrs.get('readonly'):
                     self.add_error(field, 'This field is required when reporting a birth.')
@@ -96,8 +101,7 @@ class DeliveryForm(forms.ModelForm):
         
     def clean_mother_dob(self):
         dob = self.cleaned_data.get('mother_dob')
-        if not self.cleaned_data.get('no_births_to_report') and not dob:
-             raise forms.ValidationError("This field is required when reporting a birth.")
+        if not self.cleaned_data.get('no_births_to_report') and not dob: raise forms.ValidationError("This field is required when reporting a birth.")
         if not dob: return dob
         today = date.today(); age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         MIN_AGE, MAX_AGE = 10, 65
@@ -122,11 +126,9 @@ class DashboardReportFilterForm(forms.Form):
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        
         self.fields['district'].choices = [('', 'All Districts')] + [(d[0], d[1]) for d in DISTRICT_CHOICES if d[0]]
         self.fields['local_municipality'].choices = [('', 'All Municipalities')]
         self.fields['facility'].choices = [('', 'All Facilities')]
-
         if user and not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
             profile = user.profile
             if user.groups.filter(name='Admin').exists():
