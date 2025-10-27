@@ -68,6 +68,53 @@
     <div class="row">
         <div class="col-12 mb-4"><div class="card border-danger h-100"><div class="card-header"><h5 class="card-title mb-0">Teenage Pregnancies by Facility</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-sm"><thead class="table-dark"><tr class="text-white"><th>Facility Name</th><th>Births (10-14 yrs)</th><th>Births (15-19 yrs)</th></tr></thead><tbody class="text-white">{% for summary in teenage_pregnancy_summary %}{% if summary.group_10_14 > 0 or summary.group_15_19 > 0 %}<tr><td>{{ summary.facility }}</td><td>{{ summary.group_10_14 }}</td><td>{{ summary.group_15_19 }}</td></tr>{% endif %}{% empty %}<tr><td colspan="3" class="text-center">No teenage pregnancy data available for this selection.</td></tr>{% endfor %}</tbody><tfoot class="table-group-divider"><tr class="fw-bold"><td>Teenage Pregnancies - Total</td><td>{{ teenage_totals.total_10_14|default:0 }}</td><td>{{ teenage_totals.total_15_19|default:0 }}</td></tr></tfoot></table></div></div></div></div>
     </div>
+        <!-- Column for Birth Weight Summary Table (NEW) -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-warning h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Births by Weight Category</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead class="table-dark">
+                                <tr class="text-white">
+                                    <th>Term</th>
+                                    <th>Range</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-white">
+                                <tr>
+                                    <td>Extremely Low</td>
+                                    <td>&lt;1000 g</td>
+                                    <td>{{ weight_summary.extremely_low|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Very Low</td>
+                                    <td>1000–1499 g</td>
+                                    <td>{{ weight_summary.very_low|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Low</td>
+                                    <td>1500–2499 g</td>
+                                    <td>{{ weight_summary.low|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Normal</td>
+                                    <td>2500–3999 g</td>
+                                    <td>{{ weight_summary.normal|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>High / Macrosomic</td>
+                                    <td>≥4000 g</td>
+                                    <td>{{ weight_summary.high|default:0 }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- END OF ROW 6 -->
 
     <!-- ROW 5: MULTIPLE BIRTHS SUMMARY -->
     <div class="row">

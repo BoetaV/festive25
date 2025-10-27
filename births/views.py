@@ -138,6 +138,14 @@ class LandingPageView(TemplateView):
             elif delivery.baby_count == 5: multiple_births_summary[facility_name]['Quintuplets'] += 1
         has_multiple_births = bool(multiple_births_summary)
 
+        weight_summary = babies_qs.aggregate(
+        extremely_low=Count('id', filter=Q(weight__lt=1000)),
+        very_low=Count('id', filter=Q(weight__gte=1000, weight__lt=1500)),
+        low=Count('id', filter=Q(weight__gte=1500, weight__lt=2500)),
+        normal=Count('id', filter=Q(weight__gte=2500, weight__lt=4000)),
+        high=Count('id', filter=Q(weight__gte=4000)),
+        )
+
         # 7. Pass all data to the context
         context.update({
             'total_births': total_births, 'total_males': total_males, 'total_females': total_females,
@@ -155,6 +163,7 @@ class LandingPageView(TemplateView):
             'age_group_data': json.dumps([d['total'] for d in age_group_summary.values()]),
             'birth_mode_labels': json.dumps([i['birth_mode'] for i in birth_mode_summary]), 
             'birth_mode_data': json.dumps([i['total'] for i in birth_mode_summary]),
+            'weight_summary': weight_summary,
         })
         return context
 # ==========================================================
