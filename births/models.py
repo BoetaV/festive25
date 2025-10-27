@@ -6,27 +6,38 @@ from django.urls import reverse
 class Delivery(models.Model):
     # Location Info
     district = models.CharField(max_length=100)
-    local_municipality = models.CharField(max_length=100)
-    facility = models.CharField(max_length=100)
-    facility_type = models.CharField(max_length=100) # This field is correct as a simple CharField
+    local_municipality = models.CharField(max_length=100, blank=True, null=True) # Allow blank
+    facility = models.CharField(max_length=100, blank=True, null=True) # Allow blank
+    facility_type = models.CharField(max_length=100, blank=True, null=True) # Allow blank
 
-    # ... (rest of your fields are correct) ...
+    # Reporting Info
     report_date = models.CharField(max_length=50)
-    # ...
-    captured_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    time_slot = models.CharField(max_length=50, blank=True, null=True) # Allow blank
+
+    # --- MISSING FIELDS ---
+    no_births_to_report = models.BooleanField(default=False)
+    born_before_arrival = models.BooleanField(default=False)
+    delivery_time = models.TimeField(null=True, blank=True)
+    mother_name = models.CharField(max_length=100, null=True, blank=True)
+    mother_surname = models.CharField(max_length=100, null=True, blank=True)
+    mother_dob = models.DateField(null=True, blank=True)
+    birth_mode = models.CharField(max_length=100, null=True, blank=True)
+    gravidity = models.PositiveIntegerField(null=True, blank=True)
+    parity = models.PositiveIntegerField(null=True, blank=True)
     
+    # Metadata
+    captured_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
     @property
     def mother_full_name(self):
-        """Returns the concatenated full name of the mother."""
         parts = [self.mother_name, self.mother_surname]
         return " ".join(p for p in parts if p)
 
     def __str__(self):
         if self.no_births_to_report:
             return f"NIL Report for {self.facility} on {self.report_date}"
-        full_name = self.mother_full_name
-        return f"Delivery at {self.facility} - {full_name or 'N/A'}"
+        return f"Delivery at {self.facility} - {self.mother_full_name or 'N/A'}"
 
     def get_absolute_url(self):
         return reverse('delivery_list')
