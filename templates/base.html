@@ -47,6 +47,11 @@
                                 <li><a class="dropdown-item" href="{% url 'dashboard_report_filter' %}"><i class="fas fa-file-pdf me-2"></i>Generate Dashboard Report (PDF)</a></li>
                             </ul>
                         </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'report_abnormal_weights' %}">
+                                    <i class="fas fa-triangle-exclamation me-2"></i>Abnormal Weight Report
+                                </a>
+                            </li>
                         {% if user.is_superuser or 'Admin' in user.groups.all|join:',' %}
                         <li class="nav-item"><a class="nav-link" href="{% url 'user_list' %}">User Management</a></li>
                         {% endif %}

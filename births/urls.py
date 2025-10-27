@@ -43,6 +43,7 @@ urlpatterns = [
     path('deliveries/<int:pk>/delete/', views.DeliveryDeleteView.as_view(), name='delivery_delete'),
 
     path('reports/export-excel/', views.export_full_report_excel, name='export_full_report'),
+    path('reports/abnormal-weights/', views.AbnormalWeightReportView.as_view(), name='report_abnormal_weights'),
     
     # --- AJAX URL for dynamic dropdowns (this remains the same) ---
     path('ajax/get-facility-type/', views.get_facility_type, name='ajax_get_facility_type'),

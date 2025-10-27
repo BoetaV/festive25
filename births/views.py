@@ -7,7 +7,7 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 from django.views import View
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Case, When, Value, CharField
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
@@ -432,3 +432,50 @@ def get_facility_type(request):
         return JsonResponse({'error': 'Facility type not found'}, status=404)
         
     return JsonResponse({'facility_type': facility_type})
+
+# ==========================================================
+# NEW: ABNORMAL BIRTH WEIGHT REPORT VIEW
+# ==========================================================
+class AbnormalWeightReportView(LoginRequiredMixin, ListView):
+    model = Baby
+    template_name = 'births/report_abnormal_weights.html'
+    context_object_name = 'babies'
+    paginate_by = 50 # Add pagination for long lists
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        # --- 1. Start with the base queryset of babies ---
+        # Use select_related to efficiently fetch the parent Delivery object for each baby
+        queryset = super().get_queryset().select_related('delivery', 'delivery__captured_by')
+
+        # --- 2. Apply permission filtering ---
+        if not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
+            if user.groups.filter(name='Admin').exists():
+                queryset = queryset.filter(delivery__district=user.profile.district)
+            elif user.groups.filter(name='User').exists():
+                queryset = queryset.filter(delivery__facility=user.profile.facility)
+
+        # --- 3. Filter for abnormal weights ---
+        # Exclude all babies in the normal range (2500-3999g)
+        queryset = queryset.exclude(weight__gte=2500, weight__lt=4000)
+
+        # --- 4. Annotate with a comment ---
+        # Use a Case/When expression to add a 'comment' field on the fly
+        queryset = queryset.annotate(
+            comment=Case(
+                When(weight__lt=1000, then=Value('Extremely Low')),
+                When(weight__gte=1000, weight__lt=1500, then=Value('Very Low')),
+                When(weight__gte=1500, weight__lt=2500, then=Value('Low')),
+                When(weight__gte=4000, then=Value('High / Macrosomic')),
+                default=Value('N/A'),
+                output_field=CharField(),
+            )
+        ).order_by('-delivery__timestamp') # Show most recent first
+
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['report_title'] = "Abnormal Birth Weight Report"
+        return context
