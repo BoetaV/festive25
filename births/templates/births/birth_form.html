@@ -30,7 +30,7 @@
                     </div>
                     <p class="text-info">(Please complete details for each live birth if applicable)</p>
                     <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
-                        <button type="submit" class="btn btn-primary">{{ submit_button_text|default:form_title }}</button>
+                        <button type="submit" class="btn btn-primary" id="submit-delivery-btn">{{ submit_button_text|default:form_title }}</button>
                         <a href="{% url 'delivery_list' %}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fieldsToToggleForNil = ['#div_id_number_of_babies', '#div_id_born_before_arrival', '#div_id_delivery_time', '#div_id_mother_name', '#div_id_mother_surname', '#div_id_mother_dob', '#div_id_birth_mode', '#div_id_gravidity', '#div_id_parity'];
     const babyDetailsSection = document.getElementById('baby-details-section');
     const babyFormsContainer = document.getElementById('baby-forms-container');
+    const submitButton = document.getElementById('submit-delivery-btn');
 
     // --- GET INITIAL VALUES FROM FORM (for edit mode) ---
     const initialMunicipality = "{{ form.local_municipality.value|default_if_none:'' }}";
@@ -149,6 +150,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ==========================================================
+    // NEW: SOFT VALIDATION FOR BABY WEIGHT
+    // ==========================================================
+    function validateBabyWeights(event) {
+        const MIN_WEIGHT = 2500;
+        const MAX_WEIGHT = 4000;
+        let unusualWeightsFound = [];
+
+        // Find all baby weight inputs that are currently visible
+        const babyWeightInputs = document.querySelectorAll('.baby-form-row[style*="display: block"] input[name$="-weight"]');
+
+        babyWeightInputs.forEach(input => {
+            const weight = parseInt(input.value, 10);
+            // Check if the weight is a number and is outside the normal range
+            if (!isNaN(weight) && (weight < MIN_WEIGHT || weight > MAX_WEIGHT)) {
+                unusualWeightsFound.push(weight);
+            }
+        });
+
+        // If we found any unusual weights
+        if (unusualWeightsFound.length > 0) {
+            // Create a user-friendly message
+            const message = `The following baby weight(s) are outside the normal range (2500g - 4000g):\n\n` +
+                          `${unusualWeightsFound.join('g, ')}g\n\n` +
+                          `Please verify the weight is correct. Click 'OK' to submit anyway, or 'Cancel' to fix.`;
+
+            // Show a confirmation dialog. 'confirm()' returns true for OK, false for Cancel.
+            if (!confirm(message)) {
+                // If the user clicks "Cancel", stop the form from submitting
+                event.preventDefault(); 
+            }
+        }
+    }
+
+
+    // ==========================================================
     // INITIALIZE WIDGETS AND EVENT LISTENERS
     // ==========================================================
     
@@ -181,6 +217,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (nilBirthsCheckbox) {
         nilBirthsCheckbox.addEventListener('change', handleNilReportToggle);
         nilBirthsCheckbox.addEventListener('change', toggleTimeSlotField);
+    if (submitButton) {submitButton.addEventListener('click', validateBabyWeights);
+    
     }
 
     // --- INITIALIZATION LOGIC ---
