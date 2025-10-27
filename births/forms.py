@@ -7,7 +7,13 @@ from .models import Delivery, Baby
 from .data import LOCATION_DATA, DISTRICT_CHOICES
 
 # --- STATIC CHOICES LISTS ---
-FACILITY_TYPE_CHOICES = [("", "--Select Facility Type--"), ("Clinic", "Clinic"), ("CHC", "CHC"), ("District Hospital", "District Hospital"), ("Regional Hospital", "Regional Hospital"), ("Tertiary Hospital", "Tertiary Hospital"), ("Academic Hospital", "Academic Hospital"), ("Private Hospital", "Private Hospital")]
+FACILITY_TYPE_CHOICES = [
+    ("", "--Select Facility Type--"), 
+    ("Academic Hospital", "Academic Hospital"), ("Clinic", "Clinic"), 
+    ("CHC", "Community Health Centre"), ("District Hospital", "District Hospital"), 
+    ("Private Hospital", "Private Hospital"), ("Regional Hospital", "Regional Hospital"), 
+    ("Tertiary Hospital", "Tertiary Hospital"),
+]
 REPORT_DATE_CHOICES = [("", "--Select Report Date--"), ("25 December 2025", "25 December 2025"), ("01 January 2026", "01 January 2026")]
 TIME_SLOT_CHOICES = [("", "--Select Time Slot--"), ("00:01 - 06:00", "00:01 - 06:00"), ("06:01 - 12:00", "06:01 - 12:00"), ("12:01 - 18:00", "12:01 - 18:00"), ("18:01 - 24:00", "18:01 - 24:00")]
 BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal Vertex"), ("Caesarean section Elective", "Caesarean section Elective"), ("Caesarean section Emergency", "Caesarean section Emergency"), ("Vacuum", "Vacuum"), ("Forceps", "Forceps"), ("Vaginal Breech", "Vaginal Breech")]
@@ -15,7 +21,7 @@ BIRTH_MODE_CHOICES = [("", "--Select Birth Mode--"), ("Normal Vertex", "Normal V
 # --- THE MAIN FORM FOR THE DELIVERY EVENT ---
 class DeliveryForm(forms.ModelForm):
     number_of_babies = forms.ChoiceField(choices=[('', '--Select Number of Babies--')] + [(i, str(i)) for i in range(1, 6)], label="Number of Babies in this Delivery", required=False)
-    district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=True)
+    district = forms.ChoiceField(choices=DISTRICT_CHOICES, required=False)
     local_municipality = forms.ChoiceField(choices=[], required=False)
     facility = forms.ChoiceField(choices=[], required=False)
     facility_type = forms.ChoiceField(choices=FACILITY_TYPE_CHOICES, required=False)
@@ -35,14 +41,11 @@ class DeliveryForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         self.fields['time_slot'].widget.attrs['disabled'] = True
-        self.fields['time_slot'].help_text = 'This field is only for NIL reports. It is set automatically for live births.'
-        
+        self.fields['time_slot'].help_text = 'This is only for NIL reports. Set automatically for live births.'
         self.fields['facility_type'].widget.attrs['disabled'] = True
         self.fields['facility_type'].help_text = 'This is set automatically when you select a Facility.'
         
-        data = self.data
-        instance = self.instance
-
+        data, instance = self.data, self.instance
         if data:
             try:
                 district = data.get('district'); municipality = data.get('local_municipality')
@@ -54,8 +57,7 @@ class DeliveryForm(forms.ModelForm):
             if instance.local_municipality: self.fields['facility'].choices = [(f, f) for f in LOCATION_DATA['facilities'].get(instance.local_municipality, [])]
 
         if user:
-            if user.is_superuser or user.groups.filter(name='ProvinceUser').exists():
-                return
+            if user.is_superuser or user.groups.filter(name='ProvinceUser').exists(): return
             profile = user.profile
             if user.groups.filter(name='Admin').exists():
                 self.fields['district'].initial = profile.district; self.fields['district'].choices = [(profile.district, profile.district)]; self.fields['district'].widget.attrs['readonly'] = True
@@ -64,6 +66,37 @@ class DeliveryForm(forms.ModelForm):
                 self.fields['local_municipality'].choices = [(profile.local_municipality, profile.local_municipality)]; self.fields['local_municipality'].initial = profile.local_municipality; self.fields['local_municipality'].widget.attrs['readonly'] = True
                 self.fields['facility'].choices = [(profile.facility, profile.facility)]; self.fields['facility'].initial = profile.facility; self.fields['facility'].widget.attrs['readonly'] = True
 
+    def clean(self):
+        cleaned_data = super().clean()
+        is_nil_report = cleaned_data.get('no_births_to_report')
+        
+        # --- Manually add disabled field values back to cleaned_data ---
+        # This is the critical fix for saving auto-populated fields.
+        time_slot = self.data.get('time_slot')
+        facility_type = self.data.get('facility_type')
+        if time_slot: cleaned_data['time_slot'] = time_slot
+        if facility_type: cleaned_data['facility_type'] = facility_type
+
+        if is_nil_report:
+            if not cleaned_data.get('time_slot'): self.add_error('time_slot', 'You must select a time slot for a NIL report.')
+            for field in ['delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'gravidity', 'parity', 'number_of_babies']: cleaned_data[field] = None
+            return cleaned_data
+        else:
+            delivery_time = cleaned_data.get('delivery_time')
+            # Auto-populate time_slot for live births
+            if delivery_time:
+                slot_map = {(time(0, 1), time(6, 0)): "00:01 - 06:00", (time(6, 1), time(12, 0)): "06:01 - 12:00", (time(12, 1), time(18, 0)): "12:01 - 18:00", (time(18, 1), time(23, 59)): "18:01 - 24:00"}
+                correct_slot = next((slot for (start, end), slot in slot_map.items() if start <= delivery_time <= end), None)
+                if delivery_time == time(0, 0): correct_slot = "18:01 - 24:00"
+                if correct_slot: cleaned_data['time_slot'] = correct_slot
+                else: self.add_error('delivery_time', 'The entered Time of Delivery is invalid.')
+            
+            # Check required fields for a live birth
+            required_fields = ['district', 'local_municipality', 'facility', 'facility_type', 'delivery_time', 'mother_name', 'mother_surname', 'mother_dob', 'birth_mode', 'number_of_babies']
+            for field in required_fields:
+                if not cleaned_data.get(field) and not self.fields[field].widget.attrs.get('readonly'):
+                    self.add_error(field, 'This field is required when reporting a birth.')
+        return cleaned_data
     def clean_mother_dob(self):
         dob = self.cleaned_data.get('mother_dob')
         # Only require D.O.B if this is NOT a NIL report.
