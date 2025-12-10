@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">{{ form_title }}</h2>
+                <p class="text-center text-muted">Select the scope for your report. Choosing only a District will generate a report for the entire district.</p>
+                
+                <!-- The form will submit to the PDF generation URL with GET parameters -->
+                <form method="GET" action="{% url 'generate_dashboard_pdf' %}" id="reportFilterForm">
+                    {{ form|crispy }}
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary">Generate PDF Report</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- GRAB HTML ELEMENTS ---
+    const districtSelect = document.getElementById('id_district');
+    const municipalitySelect = document.getElementById('id_local_municipality');
+    const facilitySelect = document.getElementById('id_facility');
+
+    // --- LOGIC FOR DYNAMIC DROPDOWNS ---
+    async function fetchOptions(type, id) {
+        if (!id) return [];
+        const url = `/ajax/load-options/?type=${type}&id=${id}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.options;
+        } catch (error) {
+            console.error('Failed to fetch options:', error);
+            return [];
+        }
+    }
+
+    function updateOptions(selectElement, options, placeholder) {
+        if (!selectElement) return;
+        selectElement.innerHTML = `<option value="">${placeholder}</option>`; // Use dynamic placeholder
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option;
+            opt.textContent = option;
+            selectElement.appendChild(opt);
+        });
+    }
+    
+    // --- EVENT LISTENERS ---
+    if (districtSelect) {
+        districtSelect.addEventListener('change', async function() {
+            const districtId = this.value;
+            const municipalities = await fetchOptions('district', districtId);
+            updateOptions(municipalitySelect, municipalities, 'All Municipalities');
+            updateOptions(facilitySelect, [], 'All Facilities'); // Clear and reset facilities
+        });
+    }
+
+    if (municipalitySelect) {
+        municipalitySelect.addEventListener('change', async function() {
+            const municipalityId = this.value;
+            const facilities = await fetchOptions('municipality', municipalityId);
+            updateOptions(facilitySelect, facilities, 'All Facilities');
+        });
+    }
+});
+</script>
+{% endblock javascript %}

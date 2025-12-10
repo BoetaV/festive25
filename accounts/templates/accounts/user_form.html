@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">{{ form_title }}</h2>
+                <form method="post" id="userForm">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                        <button type="submit" class="btn btn-primary">{{ submit_button_text|default:form_title }}</button>
+                        <a href="{% url 'user_list' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascript %}
+document.addEventListener('DOMContentLoaded', function() {
+    // --- GRAB HTML ELEMENTS ---
+    const roleSelect = document.getElementById('id_role');
+    const districtSelect = document.getElementById('id_district'); // <-- Re-added this
+    const municipalitySelect = document.getElementById('id_local_municipality');
+    const facilitySelect = document.getElementById('id_facility');
+    
+    // Also grab the parent divs for toggling visibility
+    const districtGroup = document.querySelector('#div_id_district');
+    const municipalityGroup = document.querySelector('#div_id_local_municipality');
+    const facilityGroup = document.querySelector('#div_id_facility');
+
+    // --- GET INITIAL VALUES (for Edit mode) ---
+    const initialMunicipality = "{{ initial_municipality|default_if_none:'' }}";
+    const initialFacility = "{{ initial_facility|default_if_none:'' }}";
+
+    // --- LOGIC TO SHOW/HIDE FIELDS BASED ON SELECTED ROLE ---
+    function toggleLocationFields() {
+        if (!roleSelect) return;
+        const selectedRoleText = roleSelect.options[roleSelect.selectedIndex].text;
+
+        if (districtGroup && municipalityGroup && facilityGroup) {
+            if (selectedRoleText === 'User') {
+                districtGroup.style.display = 'block';
+                municipalityGroup.style.display = 'block';
+                facilityGroup.style.display = 'block';
+            } else if (selectedRoleText === 'Admin') {
+                districtGroup.style.display = 'block';
+                municipalityGroup.style.display = 'none';
+                facilityGroup.style.display = 'none';
+            } else { // For 'ProvinceUser', etc.
+                districtGroup.style.display = 'none';
+                municipalityGroup.style.display = 'none';
+                facilityGroup.style.display = 'none';
+            }
+        }
+    }
+
+    // --- LOGIC FOR DYNAMIC DROPDOWNS ---
+    async function fetchOptions(type, id) {
+        if (!id) return [];
+        const url = `/ajax/load-options/?type=${type}&id=${id}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) { console.error(`AJAX Error: ${response.status} ${response.statusText}`); return []; }
+            const data = await response.json();
+            return data.options;
+        } catch (error) { console.error('Failed to fetch or parse options:', error); return []; }
+    }
+
+    function updateOptions(selectElement, options, selectedValue = null) {
+        if (!selectElement) return;
+        let placeholder = '---------';
+        if (selectElement.id === 'id_local_municipality') { placeholder = 'Select Municipality'; }
+        else if (selectElement.id === 'id_facility') { placeholder = 'Select Facility'; }
+        selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option; opt.textContent = option;
+            if (option === selectedValue) { opt.selected = true; }
+            selectElement.appendChild(opt);
+        });
+        setTimeout(() => { selectElement.dispatchEvent(new Event('change')); }, 10);
+    }
+    
+    // --- ATTACH EVENT LISTENERS ---
+    if (roleSelect) { roleSelect.addEventListener('change', toggleLocationFields); }
+    if (districtSelect) { districtSelect.addEventListener('change', async () => { const municipalities = await fetchOptions('district', districtSelect.value); updateOptions(municipalitySelect, municipalities); }); }
+    if (municipalitySelect) { municipalitySelect.addEventListener('change', async () => { const facilities = await fetchOptions('municipality', municipalitySelect.value); updateOptions(facilitySelect, facilities, (municipalitySelect.value === initialMunicipality) ? initialFacility : null); }); }
+
+    // ==========================================================
+    // INITIALIZATION LOGIC
+    // ==========================================================
+    async function initializeForm() {
+        // Run the role-based toggle first to set initial visibility
+        toggleLocationFields();
+
+        // If a district is already selected (e.g., for an Admin or in Edit mode)
+        if (districtSelect && districtSelect.value) {
+            const municipalities = await fetchOptions('district', districtSelect.value);
+            // Populate the municipalities and pre-select the correct one
+            updateOptions(municipalitySelect, municipalities, initialMunicipality);
+        }
+    }
+
+    // RUN THE INITIALIZATION LOGIC ON PAGE LOAD
+    initializeForm();
+});
+{% endblock javascript %}

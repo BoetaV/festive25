@@ -1,0 +1,174 @@
+{% load static %}
+{% load custom_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECDoH Festive Births</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+    
+    <!-- STYLESHEETS -->
+    <!-- Using Journal Theme for the Dashboard -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/journal/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <style>
+        html, body { height: 100%; }
+        body { display: flex; flex-direction: column; padding-top: 70px; }
+        main { flex-grow: 1; }
+        .footer { flex-shrink: 0; }
+        .dropdown-menu { background-color: #343a40; }
+        .dropdown-item { color: #f8f9fa; }
+        .dropdown-item:hover, .dropdown-item:focus { background-color: #495057; color: #fff; }
+    </style>
+</head>
+<body>
+        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="{% url 'landing_page' %}">ECDoH Festive Births</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarColor02">
+                    
+                    <!-- Left-aligned navigation items -->
+                    <ul class="navbar-nav me-auto">
+                        {% if user.is_authenticated %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'delivery_list' %}">View Records</a></li>
+                            
+                            {% if 'ProvinceUser' not in user.groups.all|join:',' %}
+                                <li class="nav-item"><a class="nav-link" href="{% url 'delivery_create' %}">Add Record</a></li>
+                            {% endif %}
+                            
+                            <!-- REPORTS DROPDOWN (UPDATED) -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="navbarReportsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Reports
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="navbarReportsDropdown">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'export_full_report' %}">
+                                            <i class="fas fa-file-excel me-2"></i>Download Full Report (Excel)
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'dashboard_report_filter' %}">
+                                            <i class="fas fa-file-pdf me-2"></i>Generate Dashboard Report (PDF)
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'report_abnormal_weights' %}">
+                                            <i class="fas fa-triangle-exclamation me-2"></i>Abnormal Weight Report
+                                        </a>
+                                    </li>
+
+                                    <!-- NEW: USER LIST EXPORT (Superuser Only) -->
+                                    {% if user.is_superuser %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'export_user_list_excel' %}">
+                                                <i class="fas fa-users-gear me-2"></i>Export User List (Excel)
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                </ul>
+                            </li>
+                            <!-- END REPORTS DROPDOWN -->
+                            
+                            {% if user.is_superuser or 'Admin' in user.groups.all|join:',' %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'user_list' %}">User Management</a></li>
+                            {% endif %}
+                        {% endif %}
+                    </ul>
+
+                    <!-- Digital Clock Placeholder -->
+                    <span class="navbar-text mx-auto d-none d-lg-block" id="navbar-clock"></span>
+
+                    <!-- Right-aligned user menu -->
+                    <ul class="navbar-nav ms-auto align-items-center">
+                        {% if user.is_authenticated %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Welcome, {{ user.get_full_name }}
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
+                                    <li><a class="dropdown-item" href="{% url 'password_change' %}">Change Password</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><form method="post" action="{% url 'logout' %}" class="px-3 py-1">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-secondary w-100">Logout</button></form></li>
+                                </ul>
+                            </li>
+                        {% else %}
+                            <li class="nav-item">
+                                <a href="{% url 'login' %}" class="btn btn-outline-primary">Login</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+    <main class="container mt-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        {% block content %}{% endblock content %}
+    </main>
+
+    {% block footer %}{% endblock footer %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <script>
+        {% block javascript %}{% endblock javascript %}
+    </script>
+    
+ <script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // --- Auto-dismissing alerts ---
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(function(alert) {
+        setTimeout(function() {
+            // Use Bootstrap's Alert instance to close it smoothly
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }, 3000); // 3 seconds
+    });
+
+    // --- Digital Clock Logic ---
+    const clockElement = document.getElementById('navbar-clock');
+
+    function updateClock() {
+        if (clockElement) {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+    }
+
+    if (clockElement) {
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+    
+}); 
+</script>
+
+</body>
+</html>
