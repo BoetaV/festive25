@@ -53,72 +53,117 @@ class LandingPageView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # --------------------------------------------------
+        # ==================================================
+        # FILTER INPUTS
+        # ==================================================
+        request = self.request
+        selected_date = request.GET.get('report_date')
+        selected_district = request.GET.get('district')
+        selected_municipality = request.GET.get('local_municipality')
+        selected_facility = request.GET.get('facility')
+
+        # ==================================================
         # BASE QUERYSETS (SINGLE SOURCE OF TRUTH)
-        # --------------------------------------------------
+        # ==================================================
         deliveries_qs = Delivery.objects.all()
-        babies_base_qs = Baby.objects.filter(is_deleted=False)
 
-        # --------------------------------------------------
-        # FILTERS
-        # --------------------------------------------------
-        selected_date = self.request.GET.get('report_date')
-        selected_district = self.request.GET.get('district')
-        selected_municipality = self.request.GET.get('local_municipality')
-        selected_facility = self.request.GET.get('facility')
+        babies_qs = Baby.objects.filter(
+            is_deleted=False,
+            delivery__no_births_to_report=False
+        )
 
+        # ==================================================
+        # APPLY FILTERS (ON DELIVERIES)
+        # ==================================================
         if selected_date:
             deliveries_qs = deliveries_qs.filter(report_date=selected_date)
+
         if selected_district:
             deliveries_qs = deliveries_qs.filter(district=selected_district)
+
         if selected_municipality:
             deliveries_qs = deliveries_qs.filter(local_municipality=selected_municipality)
+
         if selected_facility:
             deliveries_qs = deliveries_qs.filter(facility=selected_facility)
 
-        babies_qs = babies_base_qs.filter(
-            delivery__in=deliveries_qs,
-            delivery__no_births_to_report=False
-        ).distinct()
+        # ==================================================
+        # SYNC BABIES WITH FILTERED DELIVERIES
+        # ==================================================
+        babies_qs = babies_qs.filter(delivery__in=deliveries_qs)
 
-        # --------------------------------------------------
+        # ==================================================
         # KPI CARDS
-        # --------------------------------------------------
+        # ==================================================
         context['total_births'] = babies_qs.count()
         context['total_males'] = babies_qs.filter(gender='Male').count()
         context['total_females'] = babies_qs.filter(gender='Female').count()
-        context['total_nil_reports'] = deliveries_qs.filter(no_births_to_report=True).count()
+        context['total_nil_reports'] = deliveries_qs.filter(
+            no_births_to_report=True
+        ).count()
 
-        # --------------------------------------------------
-        # SUMMARY GROUPING
-        # --------------------------------------------------
+        # ==================================================
+        # SUMMARY GROUPING LOGIC
+        # ==================================================
         if selected_facility:
-            group_by, header, footer = 'facility', 'Facility', selected_facility
+            group_by = 'facility'
+            header = 'Facility'
+            footer = selected_facility
             title = f'Births in {selected_facility}'
+
         elif selected_municipality:
-            group_by, header, footer = 'facility', 'Facility', selected_municipality
+            group_by = 'facility'
+            header = 'Facility'
+            footer = selected_municipality
             title = f'Births per Facility in {selected_municipality}'
+
         elif selected_district:
-            group_by, header, footer = 'local_municipality', 'Local Municipality', selected_district
+            group_by = 'local_municipality'
+            header = 'Local Municipality'
+            footer = selected_district
             title = f'Births per Local Municipality in {selected_district}'
+
         else:
-            group_by, header, footer = 'district', 'District', 'Eastern Cape'
+            group_by = 'district'
+            header = 'District'
+            footer = 'Eastern Cape'
             title = 'Births per District'
 
+        # ==================================================
+        # SUMMARY TABLE (SOFT DELETE SAFE)
+        # ==================================================
         summary_data = deliveries_qs.filter(
             no_births_to_report=False
         ).values(group_by).annotate(
-            total_babies=Count('babies', distinct=True),
-            male_count=Count('babies', filter=Q(babies__gender='Male'), distinct=True),
-            female_count=Count('babies', filter=Q(babies__gender='Female'), distinct=True),
+            total_babies=Count(
+                'babies',
+                filter=Q(babies__is_deleted=False),
+                distinct=True
+            ),
+            male_count=Count(
+                'babies',
+                filter=Q(babies__gender='Male', babies__is_deleted=False),
+                distinct=True
+            ),
+            female_count=Count(
+                'babies',
+                filter=Q(babies__gender='Female', babies__is_deleted=False),
+                distinct=True
+            ),
         ).order_by(group_by)
 
+        # ==================================================
+        # CONTEXT PAYLOAD
+        # ==================================================
         context.update({
+            # Summary
             'summary_title': title,
             'summary_table_header': header,
             'summary_footer_title': footer,
             'summary_group_by': group_by,
             'summary_data': summary_data,
+
+            # Filters
             'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
             'selected_date': selected_date,
             'selected_district': selected_district,
@@ -126,318 +171,6 @@ class LandingPageView(TemplateView):
             'selected_facility': selected_facility,
         })
 
-        return context
-
-
-# ==========================================================
-# AUTHENTICATED CRUD VIEWS
-# ==========================================================
-class DeliveryListView(LoginRequiredMixin, ListView):
-    model = Delivery
-    template_name = 'births/birth_list.html'
-    context_object_name = 'deliveries'
-    paginate_by = 25
-
-    def get_queryset(self):
-        user = self.request.user
-        queryset = super().get_queryset().prefetch_related('babies').order_by('-timestamp')
-        
-        # If user is Superuser OR ProvinceUser, show all data.
-        if user.is_superuser or user.groups.filter(name='ProvinceUser').exists():
-            pass # No filter is applied
-        # Otherwise, filter by Admin or User role
-        elif user.groups.filter(name='Admin').exists():
-            queryset = queryset.filter(district=user.profile.district)
-        elif user.groups.filter(name='User').exists():
-            queryset = queryset.filter(facility=user.profile.facility)
-        else:
-            return queryset.none()
-        
-        query = self.request.GET.get('q')
-        if query:
-            queryset = queryset.filter(
-                Q(facility__icontains=query) | Q(mother_name__icontains=query) |
-                Q(mother_surname__icontains=query) | Q(birth_mode__icontains=query)
-            )
-        return queryset
-
-class DeliveryCreateView(LoginRequiredMixin, DataEditorRequiredMixin, CreateView): # <--- Added DataEditorRequiredMixin
-    model = Delivery
-    form_class = DeliveryForm
-    template_name = 'births/birth_form.html'
-    success_url = reverse_lazy('delivery_list')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'Add New Delivery Record'
-        context['submit_button_text'] = 'Submit Record'
-        if self.request.POST:
-            context['baby_formset'] = BabyFormSet(self.request.POST, prefix='babies')
-        else:
-            context['baby_formset'] = BabyFormSet(prefix='babies')
-        return context
-        
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-        
-    def form_valid(self, form):
-        context = self.get_context_data()
-        baby_formset = context['baby_formset']
-        if form.is_valid() and baby_formset.is_valid():
-            with transaction.atomic():
-                form.instance.captured_by = self.request.user
-                self.object = form.save()
-                if not form.cleaned_data.get('no_births_to_report'):
-                    # Only save babies if it's not a nil report
-                    for baby_form in baby_formset:
-                        if baby_form.has_changed(): 
-                            baby = baby_form.save(commit=False)
-                            baby.delivery = self.object
-                            baby.save()
-            messages.success(self.request, "Delivery record added successfully!")
-            return redirect(self.get_success_url())
-        messages.error(self.request, "There was an error in your submission. Please check the form.")
-        return self.render_to_response(self.get_context_data(form=form))
-
-class DeliveryUpdateView(LoginRequiredMixin, DataEditorRequiredMixin, UpdateView): # <--- Added DataEditorRequiredMixin
-    model = Delivery
-    form_class = DeliveryForm
-    template_name = 'births/birth_form.html'
-    success_url = reverse_lazy('delivery_list')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'Edit Delivery Record'
-        context['submit_button_text'] = 'Update Record'
-        if self.request.POST:
-            context['baby_formset'] = BabyFormSet(self.request.POST, instance=self.object, prefix='babies')
-        else:
-            context['baby_formset'] = BabyFormSet(instance=self.object, prefix='babies')
-        return context
-        
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-        
-    def post(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        form = self.get_form()
-        baby_formset = BabyFormSet(request.POST, instance=self.object, prefix='babies')
-        if form.is_valid() and baby_formset.is_valid():
-            return self.form_valid(form, baby_formset)
-        else:
-            print(f"--- FORM ERRORS ---\n{form.errors}\n--- FORMSET ERRORS ---\n{baby_formset.errors}\n--------------------")
-            messages.error(self.request, "There was an error updating the record. Please check the form.")
-            return self.form_invalid(form, baby_formset)
-            
-    def form_valid(self, form, baby_formset):
-        with transaction.atomic(): 
-            self.object = form.save()
-            # If it's a nil report, ensure all babies are deleted
-            if form.cleaned_data.get('no_births_to_report'):
-                self.object.babies.all().delete()
-            else:
-                baby_formset.save() # Save babies only if not a nil report
-        messages.success(self.request, "Delivery record updated successfully!")
-        return redirect(self.get_success_url())
-        
-    def form_invalid(self, form, baby_formset):
-        return self.render_to_response(self.get_context_data(form=form, baby_formset=baby_formset))
-
-class DeliveryDeleteView(LoginRequiredMixin, DataEditorRequiredMixin, DeleteView): # <--- Added DataEditorRequiredMixin
-    model = Delivery
-    template_name = 'births/birth_confirm_delete.html'
-    success_url = reverse_lazy('delivery_list')
-
-# ==========================================================
-# REPORTING VIEWS
-# ==========================================================
-@login_required
-def export_full_report_excel(request):
-    user = request.user
-    queryset = Delivery.objects.select_related('captured_by').prefetch_related('babies').order_by('timestamp')
-
-    if not user.is_superuser:
-        if user.groups.filter(name='Admin').exists(): queryset = queryset.filter(district=user.profile.district)
-        elif user.groups.filter(name='User').exists(): queryset = queryset.filter(facility=user.profile.facility)
-        else: queryset = queryset.none()
-
-    workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    sheet.title = 'Festive Births Full Report'
-
-    headers = [
-        'Timestamp', 'Report Date', 'Time Slot', 'Time of Birth', 'District', 
-        'Local Municipality', 'Facility', 'Facility Type', 
-        'Mother Name', 'Mother Surname', 
-        'Mother D.O.B.', 'Gravidity', 'Parity', 'Birth Mode', 'Born Before Arrival', 
-        'Baby Number', 'Baby Gender', 'Baby Weight (grams)',
-        'Captured By (Username)' 
-    ]
-    
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = openpyxl.styles.PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-    for col_num, title in enumerate(headers, 1):
-        cell = sheet.cell(row=1, column=col_num, value=title)
-        cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center')
-
-    for delivery in queryset:
-        common_data = [
-            delivery.timestamp.strftime('%Y-%m-%d %H:%M'),
-            delivery.report_date,
-            delivery.time_slot,
-            delivery.delivery_time.strftime('%H:%M') if delivery.delivery_time else '',
-            delivery.district,
-            delivery.local_municipality,
-            delivery.facility,
-            delivery.facility_type,
-            delivery.mother_name,      
-            delivery.mother_surname,   
-            delivery.mother_dob.strftime('%Y-%m-%d') if delivery.mother_dob else '',
-            delivery.gravidity,
-            delivery.parity,
-            delivery.birth_mode,
-            'Yes' if delivery.born_before_arrival else 'No',
-        ]
-        
-        captured_by_username = delivery.captured_by.username if delivery.captured_by else 'N/A'
-
-        if delivery.no_births_to_report:
-            sheet.append(common_data + ['NIL Report', 'N/A', 'N/A', captured_by_username])
-        else:
-            for i, baby in enumerate(delivery.babies.all(), 1):
-                sheet.append(common_data + [i, baby.gender, baby.weight, captured_by_username])
-
-    for col in sheet.columns:
-        length = max(len(str(cell.value or '')) for cell in col)
-        sheet.column_dimensions[col[0].column_letter].width = length + 2
-    
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="festive_births_full_report.xlsx"'
-    workbook.save(response)
-    return response
-
-class DashboardReportFilterView(LoginRequiredMixin, TemplateView):
-    template_name = 'births/dashboard_report_filter.html'
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Pass the current user to the form's __init__ method
-        context['form'] = DashboardReportFilterForm(user=self.request.user)
-        context['form_title'] = 'Generate Dashboard PDF Report'
-        return context
-
-class GenerateDashboardPDF(LoginRequiredMixin, View):
-    def get(self, request, *args, **kwargs):
-        # Reuse the LandingPageView to get all the calculated dashboard data.
-        landing_page_view = LandingPageView()
-        landing_page_view.request = request
-        context = landing_page_view.get_context_data()
-
-        context['report_user'] = request.user
-
-        report_title = "Provincial Dashboard Report"
-        if context.get('selected_facility'):
-            report_title = f"{context.get('selected_facility')} Report"
-        elif context.get('selected_municipality'):
-            report_title = f"{context.get('selected_municipality')} Report"
-        elif context.get('selected_district'):
-            report_title = f"{context.get('selected_district')} Report"
-        
-        context['report_title'] = report_title
-        
-        html_string = render_to_string('births/dashboard_pdf.html', context)
-        
-        css_path = finders.find('css/pdf_style.css')
-        if not css_path:
-            return HttpResponse("Error: CSS file 'pdf_style.css' not found in static directories.", status=500)
-        
-        pdf_stylesheet = CSS(filename=css_path)
-        
-        weasyprint_html = HTML(string=html_string, base_url=request.build_absolute_uri())
-        pdf_file = weasyprint_html.write_pdf(stylesheets=[pdf_stylesheet, CSS(string='@page { size: A4 portrait; }')])
-        
-        response = HttpResponse(pdf_file, content_type='application/pdf')
-        response['Content-Disposition'] = 'attachment; filename="dashboard_report.pdf"'
-        
-        return response
-
-# --- NIL REPORTS VIEW ---
-class NilReportView(LoginRequiredMixin, ListView):
-    model = Delivery
-    template_name = 'births/report_nil.html'
-    context_object_name = 'nil_reports'
-    paginate_by = 50
-
-    def get_queryset(self):
-        queryset = super().get_queryset().filter(no_births_to_report=True).select_related('captured_by')
-
-        district = self.request.GET.get('district')
-        municipality = self.request.GET.get('local_municipality')
-        facility = self.request.GET.get('facility')
-
-        if district:
-            queryset = queryset.filter(district=district)
-        if municipality:
-            queryset = queryset.filter(local_municipality=municipality)
-        if facility:
-            queryset = queryset.filter(facility=facility)
-            
-        user = self.request.user
-        if not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
-            if user.groups.filter(name='Admin').exists():
-                queryset = queryset.filter(district=user.profile.district)
-            elif user.groups.filter(name='User').exists():
-                queryset = queryset.filter(facility=user.profile.facility)
-
-        return queryset.order_by('-report_date', 'district', 'facility')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form'] = NilReportFilterForm(self.request.GET or None)
-        context['report_title'] = "Nil Births Report"
-        return context
-
-# ==========================================================
-# NEW: ABNORMAL BIRTH WEIGHT REPORT VIEW
-# ==========================================================
-class AbnormalWeightReportView(LoginRequiredMixin, ListView):
-    model = Baby
-    template_name = 'births/report_abnormal_weights.html'
-    context_object_name = 'babies'
-    paginate_by = 50 # Add pagination for long lists
-
-    def get_queryset(self):
-        user = self.request.user
-        
-        queryset = super().get_queryset().select_related('delivery', 'delivery__captured_by')
-
-        if not user.is_superuser and not user.groups.filter(name='ProvinceUser').exists():
-            if user.groups.filter(name='Admin').exists():
-                queryset = queryset.filter(delivery__district=user.profile.district)
-            elif user.groups.filter(name='User').exists():
-                queryset = queryset.filter(delivery__facility=user.profile.facility)
-
-        queryset = queryset.exclude(weight__gte=2500, weight__lt=4000)
-
-        queryset = queryset.annotate(
-            comment=Case(
-                When(weight__lt=1000, then=Value('Extremely Low')),
-                When(weight__gte=1000, weight__lt=1500, then=Value('Very Low')),
-                When(weight__gte=1500, weight__lt=2500, then=Value('Low')),
-                When(weight__gte=4000, then=Value('High / Macrosomic')),
-                default=Value('N/A'),
-                output_field=CharField(),
-            )
-        ).order_by('-delivery__timestamp')
-
-        return queryset
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['report_title'] = "Abnormal Birth Weight Report"
         return context
 
 # ==========================================================
