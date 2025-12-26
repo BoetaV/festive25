@@ -49,6 +49,8 @@ class Baby(models.Model):
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
     weight = models.PositiveIntegerField(null=True, blank=True, help_text="Weight in grams")
 
+    is_deleted = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Baby ({self.gender}, {self.weight}g) for Delivery {self.delivery.id}"
     
