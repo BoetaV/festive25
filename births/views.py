@@ -54,13 +54,13 @@ class LandingPageView(TemplateView):
         context = super().get_context_data(**kwargs)
 
         # --------------------------------------------------
-        # 1. BASE QUERYSETS (ACTIVE DATA ONLY)
+        # BASE QUERYSETS (SINGLE SOURCE OF TRUTH)
         # --------------------------------------------------
-            deliveries_qs = Delivery.objects.all()
-            babies_base_qs = Baby.objects.all()
+        deliveries_qs = Delivery.objects.all()
+        babies_base_qs = Baby.objects.filter(is_deleted=False)
 
         # --------------------------------------------------
-        # 2. GET FILTER VALUES FROM REQUEST
+        # FILTERS
         # --------------------------------------------------
         selected_date = self.request.GET.get('report_date')
         selected_district = self.request.GET.get('district')
@@ -76,45 +76,34 @@ class LandingPageView(TemplateView):
         if selected_facility:
             deliveries_qs = deliveries_qs.filter(facility=selected_facility)
 
-        # --------------------------------------------------
-        # 3. BABIES QUERYSET (SAFE & DISTINCT)
-        # --------------------------------------------------
         babies_qs = babies_base_qs.filter(
             delivery__in=deliveries_qs,
             delivery__no_births_to_report=False
         ).distinct()
 
         # --------------------------------------------------
-        # 4. KPI CARDS
+        # KPI CARDS
         # --------------------------------------------------
-        total_births = babies_qs.count()
-        total_males = babies_qs.filter(gender='Male').count()
-        total_females = babies_qs.filter(gender='Female').count()
-        total_nil_reports = deliveries_qs.filter(no_births_to_report=True).count()
+        context['total_births'] = babies_qs.count()
+        context['total_males'] = babies_qs.filter(gender='Male').count()
+        context['total_females'] = babies_qs.filter(gender='Female').count()
+        context['total_nil_reports'] = deliveries_qs.filter(no_births_to_report=True).count()
 
         # --------------------------------------------------
-        # 5. SUMMARY TABLE CONFIGURATION
+        # SUMMARY GROUPING
         # --------------------------------------------------
         if selected_facility:
-            group_by = 'facility'
+            group_by, header, footer = 'facility', 'Facility', selected_facility
             title = f'Births in {selected_facility}'
-            header = 'Facility'
-            footer = selected_facility
         elif selected_municipality:
-            group_by = 'facility'
+            group_by, header, footer = 'facility', 'Facility', selected_municipality
             title = f'Births per Facility in {selected_municipality}'
-            header = 'Facility'
-            footer = selected_municipality
         elif selected_district:
-            group_by = 'local_municipality'
+            group_by, header, footer = 'local_municipality', 'Local Municipality', selected_district
             title = f'Births per Local Municipality in {selected_district}'
-            header = 'Local Municipality'
-            footer = selected_district
         else:
-            group_by = 'district'
+            group_by, header, footer = 'district', 'District', 'Eastern Cape'
             title = 'Births per District'
-            header = 'District'
-            footer = 'Eastern Cape'
 
         summary_data = deliveries_qs.filter(
             no_births_to_report=False
@@ -124,181 +113,17 @@ class LandingPageView(TemplateView):
             female_count=Count('babies', filter=Q(babies__gender='Female'), distinct=True),
         ).order_by(group_by)
 
-        # --------------------------------------------------
-        # 6. AGE GROUP SUMMARY
-        # --------------------------------------------------
-        age_group_labels = ["10-14 yrs", "15-19 yrs", "20-35 yrs", "35+ yrs"]
-        age_group_summary = {label: {'male_count': 0, 'female_count': 0, 'total': 0} for label in age_group_labels}
-        today = date.today()
-
-        deliveries_for_age = deliveries_qs.filter(
-            mother_dob__isnull=False,
-            no_births_to_report=False
-        ).prefetch_related('babies')
-
-        for delivery in deliveries_for_age:
-            age = today.year - delivery.mother_dob.year - (
-                (today.month, today.day) < (delivery.mother_dob.month, delivery.mother_dob.day)
-            )
-
-            if 10 <= age <= 14:
-                group = "10-14 yrs"
-            elif 15 <= age <= 19:
-                group = "15-19 yrs"
-            elif 20 <= age <= 35:
-                group = "20-35 yrs"
-            elif age > 35:
-                group = "35+ yrs"
-            else:
-                continue
-
-            for baby in delivery.babies.filter(is_deleted=False):
-                if baby.gender == 'Male':
-                    age_group_summary[group]['male_count'] += 1
-                elif baby.gender == 'Female':
-                    age_group_summary[group]['female_count'] += 1
-                age_group_summary[group]['total'] += 1
-
-        # --------------------------------------------------
-        # 7. BIRTH MODE SUMMARY
-        # --------------------------------------------------
-        birth_mode_summary = deliveries_qs.filter(
-            no_births_to_report=False,
-            birth_mode__isnull=False
-        ).exclude(
-            birth_mode=''
-        ).values('birth_mode').annotate(
-            male_count=Count('babies', filter=Q(babies__gender='Male'), distinct=True),
-            female_count=Count('babies', filter=Q(babies__gender='Female'), distinct=True),
-            total=Count('babies', distinct=True)
-        ).order_by('birth_mode')
-
-        # --------------------------------------------------
-        # 8. TIME SLOT SUMMARY
-        # --------------------------------------------------
-        time_slot_summary = deliveries_qs.filter(
-            no_births_to_report=False
-        ).values('time_slot').annotate(
-            male_count=Count('babies', filter=Q(babies__gender='Male'), distinct=True),
-            female_count=Count('babies', filter=Q(babies__gender='Female'), distinct=True),
-            total_in_slot=Count('babies', distinct=True)
-        ).order_by('time_slot')
-
-        # --------------------------------------------------
-        # 9. FACILITY TYPE SUMMARY
-        # --------------------------------------------------
-        facility_type_summary = deliveries_qs.filter(
-            no_births_to_report=False
-        ).values('facility_type').annotate(
-            male_count=Count('babies', filter=Q(babies__gender='Male'), distinct=True),
-            female_count=Count('babies', filter=Q(babies__gender='Female'), distinct=True),
-            total_in_type=Count('babies', distinct=True)
-        ).order_by('facility_type')
-
-        # --------------------------------------------------
-        # 10. TEENAGE PREGNANCY SUMMARY
-        # --------------------------------------------------
-        date_10 = today.replace(year=today.year - 10)
-        date_15 = today.replace(year=today.year - 15)
-        date_20 = today.replace(year=today.year - 20)
-
-        teenage_pregnancy_summary = deliveries_qs.filter(
-            no_births_to_report=False,
-            mother_dob__range=(date_20, date_10)
-        ).values('facility').annotate(
-            group_10_14=Count(
-                'babies',
-                filter=Q(mother_dob__range=(date_15 + timedelta(days=1), date_10)),
-                distinct=True
-            ),
-            group_15_19=Count(
-                'babies',
-                filter=Q(mother_dob__range=(date_20, date_15 + timedelta(days=1))),
-                distinct=True
-            )
-        ).order_by('facility')
-
-        teenage_totals = teenage_pregnancy_summary.aggregate(
-            total_10_14=Sum('group_10_14'),
-            total_15_19=Sum('group_15_19')
-        )
-
-        # --------------------------------------------------
-        # 11. MULTIPLE BIRTHS SUMMARY
-        # --------------------------------------------------
-        multiple_births_summary = {}
-        deliveries_with_counts = deliveries_qs.annotate(
-            baby_count=Count('babies', distinct=True)
-        ).filter(
-            baby_count__gt=1,
-            no_births_to_report=False
-        )
-
-        for delivery in deliveries_with_counts:
-            facility = delivery.facility
-            multiple_births_summary.setdefault(
-                facility,
-                {'Twins': 0, 'Triplets': 0, 'Quadruplets': 0, 'Quintuplets': 0}
-            )
-            if delivery.baby_count == 2:
-                multiple_births_summary[facility]['Twins'] += 1
-            elif delivery.baby_count == 3:
-                multiple_births_summary[facility]['Triplets'] += 1
-            elif delivery.baby_count == 4:
-                multiple_births_summary[facility]['Quadruplets'] += 1
-            elif delivery.baby_count == 5:
-                multiple_births_summary[facility]['Quintuplets'] += 1
-
-        # --------------------------------------------------
-        # 12. BIRTH WEIGHT SUMMARY
-        # --------------------------------------------------
-        weight_summary = babies_qs.aggregate(
-            extremely_low=Count('id', filter=Q(weight__lt=1000)),
-            very_low=Count('id', filter=Q(weight__gte=1000, weight__lt=1500)),
-            low=Count('id', filter=Q(weight__gte=1500, weight__lt=2500)),
-            normal=Count('id', filter=Q(weight__gte=2500, weight__lt=4000)),
-            high=Count('id', filter=Q(weight__gte=4000)),
-        )
-
-        # --------------------------------------------------
-        # 13. CONTEXT
-        # --------------------------------------------------
         context.update({
-            'form_title': "Festive Season Dashboard",
-
-            'total_births': total_births,
-            'total_males': total_males,
-            'total_females': total_females,
-            'total_nil_reports': total_nil_reports,
-
             'summary_title': title,
             'summary_table_header': header,
             'summary_footer_title': footer,
             'summary_group_by': group_by,
             'summary_data': summary_data,
-
+            'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
             'selected_date': selected_date,
             'selected_district': selected_district,
             'selected_municipality': selected_municipality,
             'selected_facility': selected_facility,
-
-            'district_list': [d[0] for d in DISTRICT_CHOICES if d[0]],
-
-            'age_group_summary': age_group_summary,
-            'birth_mode_summary': birth_mode_summary,
-            'time_slot_summary': time_slot_summary,
-            'facility_type_summary': facility_type_summary,
-            'teenage_pregnancy_summary': teenage_pregnancy_summary,
-            'teenage_totals': teenage_totals,
-            'multiple_births_summary': multiple_births_summary,
-            'has_multiple_births': bool(multiple_births_summary),
-            'weight_summary': weight_summary,
-
-            # Chart.js
-            'age_group_labels': json.dumps(list(age_group_summary.keys())),
-            'age_group_data': json.dumps([v['total'] for v in age_group_summary.values()]),
-            'birth_mode_labels': json.dumps([i['birth_mode'] for i in birth_mode_summary]),
-            'birth_mode_data': json.dumps([i['total'] for i in birth_mode_summary]),
         })
 
         return context
