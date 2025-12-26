@@ -56,8 +56,8 @@ class LandingPageView(TemplateView):
         # --------------------------------------------------
         # 1. BASE QUERYSETS (ACTIVE DATA ONLY)
         # --------------------------------------------------
-        deliveries_qs = Delivery.objects.filter(is_deleted=False)
-        babies_base_qs = Baby.objects.filter(is_deleted=False)
+            deliveries_qs = Delivery.objects.all()
+            babies_base_qs = Baby.objects.all()
 
         # --------------------------------------------------
         # 2. GET FILTER VALUES FROM REQUEST
